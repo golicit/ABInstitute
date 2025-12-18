@@ -174,6 +174,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     } finally {
       // Always clear local state regardless of API call success
       localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('profileImage');
+
       setUser(null);
     }
   };

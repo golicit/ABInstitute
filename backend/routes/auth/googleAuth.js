@@ -2,98 +2,103 @@ const express = require('express');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const User = require('../../Model/user.js');
+const axios = require('axios');
 
 const router = express.Router();
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const client = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  'postmessage'
+);
 
-// POST /api/auth/google-login
+// Exchange authorization code for tokens
 router.post('/', async (req, res) => {
   try {
     console.log('🔐 Google auth endpoint hit!');
-    const { token, userInfo } = req.body;
+    const { code } = req.body;
 
-    if (!token && !userInfo) {
+    if (!code) {
+      console.log('❌ No code provided');
       return res.status(400).json({ 
-        success: false,
-        error: 'Token or userInfo is required' 
+        success: false, 
+        error: 'Authorization code is required' 
       });
     }
 
-    let userData;
+    console.log('📝 Exchanging code for tokens...');
 
-    if (userInfo) {
-      // If user info is sent from frontend, use it directly
-      userData = userInfo;
-      console.log('✅ Using userInfo from request:', userData);
-    } else {
-      // Otherwise, verify token with Google
-      try {
-        const ticket = await client.verifyIdToken({
-          idToken: token,
-          audience: process.env.GOOGLE_CLIENT_ID,
-        });
-        userData = ticket.getPayload();
-        console.log('✅ Token verified with Google');
-      } catch (tokenError) {
-        console.error('❌ Token verification failed:', tokenError.message);
-        return res.status(401).json({ 
-          success: false,
-          error: 'Invalid token' 
-        });
-      }
-    }
+    // Exchange code for tokens
+    const { tokens } = await client.getToken(code);
+    console.log('✅ Tokens received');
 
-    const { email, name, picture, sub } = userData;
+    // Verify ID token
+    const ticket = await client.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    console.log('👤 Google user:', payload.email);
+
+    const { email, name, picture, sub } = payload;
 
     if (!email) {
+      console.log('❌ No email in token payload');
       return res.status(400).json({ 
         success: false,
-        error: 'Email not provided' 
+        error: 'Email not provided in token' 
       });
     }
 
-    console.log('👤 Google user:', { email, name });
-
-    // Check if user exists → if not, create
+    // Find or create user
     let user = await User.findOne({ email });
 
     if (!user) {
+      console.log('📝 Creating new user...');
       user = await User.create({
         email,
-        name,
+        name: name || 'Google User',
         picture,
         provider: 'google',
-        googleId: sub // Store Google ID
+        googleId: sub,
       });
       console.log('✅ New user created:', user._id);
     } else {
       console.log('✅ Existing user found:', user._id);
+      user.name = name || user.name;
+      user.picture = picture || user.picture;
+      user.googleId = sub;
+      await user.save();
     }
 
-    // Generate JWT for your app
+    // Generate JWT token
     const jwtToken = jwt.sign(
-      { id: user._id, email: user.email },
+      { 
+        id: user._id, 
+        email: user.email,
+        provider: 'google'
+      },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
+
+    console.log('✅ JWT token generated');
 
     res.json({
       success: true,
-      message: 'Login successful',
       token: jwtToken,
       user: {
         id: user._id,
         email: user.email,
         name: user.name,
-        picture: user.picture
+        picture: user.picture,
       },
     });
-  } catch (err) {
-    console.error('❌ Google auth error:', err);
-    res.status(400).json({ 
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+    res.status(500).json({
       success: false,
-      error: 'Authentication failed',
-      message: err.message
+      error: error.message || 'Google authentication failed',
     });
   }
 });

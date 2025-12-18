@@ -8,13 +8,104 @@ const {
   userRegistrationSchema,
   userLoginSchema,
 } = require('../middleware/validation');
+const jwt = require('jsonwebtoken');
+const axios = require('axios');
 
 const router = express.Router();
 
 const googleAuthRouter = require('./auth/googleAuth');
 
+// Google OAuth Code Exchange endpoint (MUST be before router.use('/google'))
+router.post('/google-code', async (req, res) => {
+  try {
+    const { code } = req.body;
+    
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        error: 'Authorization code required'
+      });
+    }
+
+    console.log('🔐 Exchanging Google code for token');
+
+    // Exchange code for tokens with Google
+    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+      code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: 'postmessage',
+      grant_type: 'authorization_code'
+    });
+
+    console.log('✅ Token received from Google');
+
+    // Get user info from Google
+    const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: {
+        Authorization: `Bearer ${tokenResponse.data.access_token}`
+      }
+    });
+
+    const userData = userInfoResponse.data;
+    const { email, name, picture } = userData;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email not provided by Google'
+      });
+    }
+
+    console.log('👤 Google user:', { email, name });
+
+    // Find or create user
+    let user = await Users.findOne({ email });
+
+    if (!user) {
+      user = await Users.create({
+        email,
+        name,
+        picture,
+        provider: 'google',
+        googleId: userData.id
+      });
+      console.log('✅ New user created:', user._id);
+    } else {
+      console.log('✅ Existing user found:', user._id);
+    }
+
+    // Generate JWT token
+    const jwtToken = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token: jwtToken,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Google OAuth error:', error.response?.data || error.message);
+    res.status(400).json({
+      success: false,
+      error: 'Authentication failed',
+      message: error.response?.data?.error || error.message
+    });
+  }
+});
+
 // Google login route - both /google and /google-login
-router.use('/google', googleAuthRouter);
+router.use('/google-oauth', googleAuthRouter);
 router.use('/google-login', googleAuthRouter);
 
 // Rate limiting for auth endpoints
