@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -7,11 +8,18 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { apiClient } from '@/services/api';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 
 const Profile = () => {
-  const { user, updateUser } = useApp();
+  const { user, updateUser, refreshUserAvatar } = useApp();
+  const { user: authUser } = useAuth(); // Get auth user for user ID
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
@@ -20,19 +28,51 @@ const Profile = () => {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Load saved picture from localStorage
+  // Get user ID from authUser
+  const getUserId = () => {
+    if (!authUser) return 'guest';
+    const userId = (authUser as any)._id || (authUser as any).id;
+    return userId ? userId.toString() : 'unknown';
+  };
+
+  // Load saved picture from localStorage using the correct key
   useEffect(() => {
-    const savedPic = localStorage.getItem('user_profile_pic');
+    const userId = getUserId();
+    const customAvatarKey = `custom_avatar_${userId}`;
+    const savedPic = localStorage.getItem(customAvatarKey);
+
     if (savedPic) {
       setPreviewImage(savedPic);
       updateUser({ avatar: savedPic });
+    } else {
+      // Fallback to the old key for backward compatibility
+      const oldSavedPic = localStorage.getItem('user_profile_pic');
+      if (oldSavedPic) {
+        setPreviewImage(oldSavedPic);
+        updateUser({ avatar: oldSavedPic });
+        // Migrate to new key
+        localStorage.setItem(customAvatarKey, oldSavedPic);
+        localStorage.removeItem('user_profile_pic');
+      }
     }
-  }, []);
+  }, [authUser]); // Add authUser as dependency
 
   // Handle image upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size should be less than 5MB');
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
 
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -41,8 +81,10 @@ const Profile = () => {
       // Update preview
       setPreviewImage(base64);
 
-      // Save to localStorage
-      localStorage.setItem('user_profile_pic', base64);
+      // Save to localStorage with correct key
+      const userId = getUserId();
+      const customAvatarKey = `custom_avatar_${userId}`;
+      localStorage.setItem(customAvatarKey, base64);
 
       // Update user in context
       updateUser({ avatar: base64 });
@@ -66,12 +108,33 @@ const Profile = () => {
       await apiClient.post('/user/upload-avatar', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+
+      // After successful upload, refresh the avatar to get the latest
+      refreshUserAvatar();
     } catch (error) {
       console.warn(
         'Backend avatar upload failed (safe to ignore for now)',
         error
       );
     }
+  };
+
+  // Handle reset to default avatar
+  const handleResetAvatar = () => {
+    const userId = getUserId();
+    const customAvatarKey = `custom_avatar_${userId}`;
+
+    // Remove custom avatar from localStorage
+    localStorage.removeItem(customAvatarKey);
+    localStorage.removeItem('user_profile_pic'); // Clean old key too
+
+    // Clear preview
+    setPreviewImage(null);
+
+    // Refresh avatar to get default
+    refreshUserAvatar();
+
+    toast.success('Profile picture reset to default');
   };
 
   // Handle change password
@@ -98,7 +161,12 @@ const Profile = () => {
         return;
       }
 
-      const response = await apiClient.post('/api/auth/change-password', {
+      // Add proper type for the response
+      const response = await apiClient.post<{
+        success: boolean;
+        message: string;
+        data?: any;
+      }>('/api/auth/change-password', {
         oldPassword,
         newPassword,
         confirmPassword,
@@ -135,7 +203,11 @@ const Profile = () => {
           </CardHeader>
           <CardContent className='flex flex-col items-center space-y-4'>
             <Avatar className='h-32 w-32'>
-              <AvatarImage src={previewImage || user.avatar} alt={user.name} />
+              <AvatarImage
+                src={previewImage || user.avatar}
+                alt={user.name}
+                className='object-cover'
+              />
               <AvatarFallback className='text-2xl'>
                 {user.name.charAt(0)}
               </AvatarFallback>
@@ -150,15 +222,31 @@ const Profile = () => {
               onChange={handleImageUpload}
             />
 
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={() =>
-                document.getElementById('profilePicUpload')?.click()
-              }
-            >
-              Change Picture
-            </Button>
+            <div className='flex flex-col sm:flex-row gap-2 w-full'>
+              <Button
+                variant='outline'
+                size='sm'
+                className='flex-1'
+                onClick={() =>
+                  document.getElementById('profilePicUpload')?.click()
+                }
+              >
+                Change Picture
+              </Button>
+
+              <Button
+                variant='ghost'
+                size='sm'
+                className='flex-1'
+                onClick={handleResetAvatar}
+              >
+                Reset to Default
+              </Button>
+            </div>
+
+            <p className='text-xs text-muted-foreground text-center'>
+              Upload JPG, PNG, or GIF (Max 5MB)
+            </p>
           </CardContent>
         </Card>
 
@@ -236,7 +324,7 @@ const Profile = () => {
                   Update your password to keep your account secure
                 </p>
               </div>
-              <Button 
+              <Button
                 variant='outline'
                 onClick={() => navigate('/dashboard/change-password')}
               >

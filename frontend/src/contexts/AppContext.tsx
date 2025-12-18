@@ -1,4 +1,3 @@
-// src/contexts/AppContext.tsx
 import React, {
   createContext,
   useContext,
@@ -55,6 +54,7 @@ interface AppContextType {
   updateCourseProgress: (courseId: string, progress: number) => void;
   refreshCourses: () => Promise<void>;
   refreshDashboard: () => Promise<void>;
+  refreshUserAvatar: () => void; // Added for manual avatar refresh
 }
 
 const LOCAL_PROGRESS_KEY = 'course_progress';
@@ -91,7 +91,11 @@ const REAL_COURSE: Course = {
 };
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const { user: authUser, initialized: authInitialized } = useAuth();
+  const {
+    user: authUser,
+    initialized: authInitialized,
+    updateUser: updateAuthUser,
+  } = useAuth();
 
   const [user, setUser] = useState<AppUser>(initialUser);
   const [courses, setCourses] = useState<Course[]>([REAL_COURSE]);
@@ -99,8 +103,33 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [appLoading, setAppLoading] = useState(false);
 
   const refreshCourses = async () => {
-    // Keep single real course
     setCourses([REAL_COURSE]);
+  };
+
+  // Generate unique avatar URL
+  const generateAvatarUrl = (userId: string, userName: string): string => {
+    // Create a unique seed using userId and userName
+    const cleanName = userName.replace(/\s+/g, '_').toLowerCase();
+    const seed = `${userId}_${cleanName}`;
+
+    // Add cache busting parameter based on userId
+    const timestamp = Date.now();
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&cb=${userId}_${timestamp}`;
+  };
+
+  // Get user ID from authUser (handles both _id and id)
+  const getUserId = (): string => {
+    if (!authUser) return 'guest';
+
+    // Check for both _id and id properties
+    const userId = (authUser as any)._id || (authUser as any).id;
+
+    if (!userId) {
+      console.warn('No user ID found in authUser:', authUser);
+      return 'unknown';
+    }
+
+    return userId.toString();
   };
 
   // Sync app user with auth user
@@ -109,19 +138,55 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setAppLoading(true);
 
       if (authUser) {
-        // Convert auth user to app user format
-        setUser({
-          id: authUser._id || authUser._id || '1',
-          name: authUser.name || 'User',
-          email: authUser.email || '',
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${
-            authUser.name || 'User'
-          }`,
+        const userId = getUserId();
+        const userName = authUser.name || 'User';
+        const userEmail = authUser.email || '';
+
+        console.log('🔄 Syncing app user:', { userId, userName, userEmail });
+
+        // Check if user has a Google profile picture
+        const googlePicture = (authUser as any).picture;
+        let avatarUrl: string;
+
+        if (googlePicture) {
+          // For Google pictures, add cache busting with userId
+          const separator = googlePicture.includes('?') ? '&' : '?';
+          avatarUrl = `${googlePicture}${separator}cb=${userId}_${Date.now()}`;
+        } else {
+          // Generate DiceBear avatar
+          avatarUrl = generateAvatarUrl(userId, userName);
+        }
+
+        // Check if we have a custom avatar in localStorage
+        const customAvatarKey = `custom_avatar_${userId}`;
+        const customAvatar = localStorage.getItem(customAvatarKey);
+        if (customAvatar) {
+          avatarUrl = customAvatar;
+        }
+
+        // Clear previous user's avatar cache if switching users
+        const lastUserId = localStorage.getItem('last_user_id');
+        if (lastUserId && lastUserId !== userId) {
+          // Clear old user's custom avatar
+          localStorage.removeItem(`custom_avatar_${lastUserId}`);
+        }
+
+        // Store current user ID
+        localStorage.setItem('last_user_id', userId);
+
+        const newAppUser: AppUser = {
+          id: userId,
+          name: userName,
+          email: userEmail,
+          avatar: avatarUrl,
           phone: '',
           enrolledCourses: 1,
           activeCourses: 1,
           certificatesEarned: 0,
-        });
+        };
+
+        console.log('✅ Setting app user:', newAppUser);
+        setUser(newAppUser);
 
         // Load saved progress
         const savedProgress = JSON.parse(
@@ -136,8 +201,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           );
         }
       } else {
-        // No auth user, keep default
-        setUser(initialUser);
+        // No auth user - reset to default
+        console.log('🔄 No auth user, setting guest');
+        const guestAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=guest_${Date.now()}`;
+        setUser({
+          ...initialUser,
+          avatar: guestAvatar,
+        });
+
+        // Clear last user ID
+        localStorage.removeItem('last_user_id');
       }
 
       setAppLoading(false);
@@ -160,7 +233,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateCourseProgress = (courseId: string, progress: number) => {
-    // Update React state
     setCourses((prev) =>
       prev.map((course) =>
         course.id === courseId
@@ -169,15 +241,66 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       )
     );
 
-    // Save to localStorage
     const saved = JSON.parse(localStorage.getItem(LOCAL_PROGRESS_KEY) || '{}');
     saved[courseId] = progress;
     localStorage.setItem(LOCAL_PROGRESS_KEY, JSON.stringify(saved));
   };
 
+  const refreshUserAvatar = () => {
+    if (authUser) {
+      const userId = getUserId();
+      const userName = authUser.name || 'User';
+
+      // Check for custom avatar first
+      const customAvatarKey = `custom_avatar_${userId}`;
+      const customAvatar = localStorage.getItem(customAvatarKey);
+
+      let avatarUrl: string;
+
+      if (customAvatar) {
+        avatarUrl = customAvatar;
+      } else {
+        // Check for Google picture
+        const googlePicture = (authUser as any).picture;
+        if (googlePicture) {
+          const separator = googlePicture.includes('?') ? '&' : '?';
+          avatarUrl = `${googlePicture}${separator}cb=${userId}_${Date.now()}`;
+        } else {
+          avatarUrl = generateAvatarUrl(userId, userName);
+        }
+      }
+
+      setUser((prev) => ({
+        ...prev,
+        avatar: avatarUrl,
+      }));
+
+      console.log('🔄 Refreshed avatar:', avatarUrl);
+    }
+  };
+
   const refreshDashboard = async () => {
-    // This is now handled by the useEffect above
-    refreshCourses();
+    await refreshCourses();
+  };
+
+  const updateUserWithAvatar = (updatedUser: Partial<AppUser>) => {
+    setUser((prev) => {
+      const newUser = { ...prev, ...updatedUser };
+
+      // If avatar is being updated, save it as custom avatar
+      if (updatedUser.avatar && authUser) {
+        const userId = getUserId();
+        const customAvatarKey = `custom_avatar_${userId}`;
+        localStorage.setItem(customAvatarKey, updatedUser.avatar);
+
+        // Also update auth user if it has an avatar field
+        if (updateAuthUser && (authUser as any).avatar !== undefined) {
+          updateAuthUser({ ...authUser, avatar: updatedUser.avatar } as any);
+        }
+      }
+
+      return newUser;
+    });
   };
 
   return (
@@ -187,11 +310,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         courses,
         payments,
         loading: appLoading,
-        updateUser: (u) => setUser((prev) => ({ ...prev, ...u })),
+        updateUser: updateUserWithAvatar,
         enrollCourse,
         updateCourseProgress,
         refreshCourses,
         refreshDashboard,
+        refreshUserAvatar,
       }}
     >
       {children}

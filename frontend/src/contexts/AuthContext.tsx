@@ -20,6 +20,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
+  updateUser: (updatedUser: Partial<User>) => void; // Added for profile updates
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -49,7 +50,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     // Load user from localStorage immediately on mount
-    const storedUser = loadUserFromStorage();
+    loadUserFromStorage();
 
     // Check for stored user data and verify token on app load
     const initializeAuth = async () => {
@@ -83,18 +84,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
             );
           } else {
             console.log('Token verification failed or token invalid');
-            // Token invalid, but keep user in state for now (from localStorage)
-            // Don't clear storage immediately - let user continue with cached data
-            console.log('Keeping cached user data for now');
+            // Token invalid, clear storage
+            authAPI.logout();
+            localStorage.removeItem('user');
+            setUser(null);
           }
         } catch (error) {
           console.log('Token verification error:', error);
-          // If verification fails (network error, server down), keep the cached user
-          // This allows offline usage with cached data
-          console.log('Network error during verification, keeping cached user');
+          // If verification fails, clear storage
+          authAPI.logout();
+          localStorage.removeItem('user');
+          setUser(null);
         }
       } catch (error) {
         console.log('Auth initialization error:', error);
+        setUser(null);
       } finally {
         setLoading(false);
         setInitialized(true);
@@ -172,11 +176,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Always clear local state regardless of API call success
+      // Clear all user-related data from localStorage
       localStorage.removeItem('user');
       localStorage.removeItem('token');
-      localStorage.removeItem('profileImage');
-
+      // Clear all avatar caches
+      const allKeys = Object.keys(localStorage);
+      allKeys.forEach((key) => {
+        if (key.startsWith('avatar_')) {
+          localStorage.removeItem(key);
+        }
+      });
       setUser(null);
     }
   };
@@ -259,6 +268,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  // Function to update user profile
+  const updateUser = (updatedUser: Partial<User>) => {
+    if (user) {
+      const newUser = { ...user, ...updatedUser };
+      setUser(newUser);
+      localStorage.setItem('user', JSON.stringify(newUser));
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -270,6 +288,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         signInWithGoogle,
         signOut,
         resetPassword,
+        updateUser, // Added
       }}
     >
       {children}
