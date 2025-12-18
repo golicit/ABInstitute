@@ -34,7 +34,7 @@ export interface Payment {
   date: string;
 }
 
-export interface User {
+export interface AppUser {
   id: string;
   name: string;
   email: string;
@@ -46,11 +46,11 @@ export interface User {
 }
 
 interface AppContextType {
-  user: User;
+  user: AppUser;
   courses: Course[];
   payments: Payment[];
   loading: boolean;
-  updateUser: (user: Partial<User>) => void;
+  updateUser: (user: Partial<AppUser>) => void;
   enrollCourse: (courseId: string) => void;
   updateCourseProgress: (courseId: string, progress: number) => void;
   refreshCourses: () => Promise<void>;
@@ -61,8 +61,8 @@ const LOCAL_PROGRESS_KEY = 'course_progress';
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// initial user (minimal)
-const initialUser: User = {
+// Initial user (minimal)
+const initialUser: AppUser = {
   id: '1',
   name: 'Student',
   email: 'student@example.com',
@@ -73,7 +73,7 @@ const initialUser: User = {
   certificatesEarned: 0,
 };
 
-// your single real course (thumbnail uses public path /course/1.jpeg)
+// Your single real course
 const REAL_COURSE: Course = {
   id: 'option-analysis-strategy',
   title: 'Option Analysis Strategy by A. Bhattacharjee',
@@ -91,38 +91,58 @@ const REAL_COURSE: Course = {
 };
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const { user: authUser } = useAuth();
+  const { user: authUser, initialized: authInitialized } = useAuth();
 
-  const [user, setUser] = useState<User>(initialUser);
+  const [user, setUser] = useState<AppUser>(initialUser);
   const [courses, setCourses] = useState<Course[]>([REAL_COURSE]);
   const [payments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [appLoading, setAppLoading] = useState(false);
 
   const refreshCourses = async () => {
-    // keep single real course
+    // Keep single real course
     setCourses([REAL_COURSE]);
   };
 
-  const refreshDashboard = async () => {
-    if (authUser) {
-      setUser((prev) => ({
-        ...prev,
-        id: authUser._id,
-        name: authUser.name,
-        email: authUser.email,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${authUser.name}`,
-      }));
+  // Sync app user with auth user
+  useEffect(() => {
+    if (authInitialized) {
+      setAppLoading(true);
+
+      if (authUser) {
+        // Convert auth user to app user format
+        setUser({
+          id: authUser._id || authUser._id || '1',
+          name: authUser.name || 'User',
+          email: authUser.email || '',
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${
+            authUser.name || 'User'
+          }`,
+          phone: '',
+          enrolledCourses: 1,
+          activeCourses: 1,
+          certificatesEarned: 0,
+        });
+
+        // Load saved progress
+        const savedProgress = JSON.parse(
+          localStorage.getItem(LOCAL_PROGRESS_KEY) || '{}'
+        );
+        if (Object.keys(savedProgress).length > 0) {
+          setCourses((prev) =>
+            prev.map((course) => ({
+              ...course,
+              progress: savedProgress[course.id] || course.progress,
+            }))
+          );
+        }
+      } else {
+        // No auth user, keep default
+        setUser(initialUser);
+      }
+
+      setAppLoading(false);
     }
-    await refreshCourses();
-  };
-
-  useEffect(() => {
-    refreshCourses();
-  }, []);
-
-  useEffect(() => {
-    if (authUser) refreshDashboard();
-  }, [authUser]);
+  }, [authUser, authInitialized]);
 
   const enrollCourse = (courseId: string) => {
     setCourses((prev) =>
@@ -155,13 +175,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem(LOCAL_PROGRESS_KEY, JSON.stringify(saved));
   };
 
+  const refreshDashboard = async () => {
+    // This is now handled by the useEffect above
+    refreshCourses();
+  };
+
   return (
     <AppContext.Provider
       value={{
         user,
         courses,
         payments,
-        loading,
+        loading: appLoading,
         updateUser: (u) => setUser((prev) => ({ ...prev, ...u })),
         enrollCourse,
         updateCourseProgress,

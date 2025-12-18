@@ -4,6 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toast } from '@/hooks/use-toast';
+
 import {
   Card,
   CardContent,
@@ -76,9 +78,21 @@ const Auth = () => {
       const validated = loginSchema.parse(loginData);
       const { error } = await signIn(validated.email, validated.password);
 
-      if (!error) {
-        navigate('/dashboard');
+      if (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Login failed',
+          description: error,
+        });
+        return;
       }
+
+      toast({
+        title: 'Login successful',
+        description: 'Welcome back!',
+      });
+
+      navigate('/dashboard');
     } catch (err) {
       if (err instanceof z.ZodError) {
         const newErrors: Record<string, string> = {};
