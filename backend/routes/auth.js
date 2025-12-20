@@ -15,95 +15,6 @@ const router = express.Router();
 
 const googleAuthRouter = require('./auth/googleAuth');
 
-// Google OAuth Code Exchange endpoint (MUST be before router.use('/google'))
-router.post('/google-code', async (req, res) => {
-  try {
-    const { code } = req.body;
-    
-    if (!code) {
-      return res.status(400).json({
-        success: false,
-        error: 'Authorization code required'
-      });
-    }
-
-    console.log('🔐 Exchanging Google code for token');
-
-    // Exchange code for tokens with Google
-    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
-      code,
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: 'postmessage',
-      grant_type: 'authorization_code'
-    });
-
-    console.log('✅ Token received from Google');
-
-    // Get user info from Google
-    const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: {
-        Authorization: `Bearer ${tokenResponse.data.access_token}`
-      }
-    });
-
-    const userData = userInfoResponse.data;
-    const { email, name, picture } = userData;
-
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email not provided by Google'
-      });
-    }
-
-    console.log('👤 Google user:', { email, name });
-
-    // Find or create user
-    let user = await Users.findOne({ email });
-
-    if (!user) {
-      user = await Users.create({
-        email,
-        name,
-        picture,
-        provider: 'google',
-        googleId: userData.id
-      });
-      console.log('✅ New user created:', user._id);
-    } else {
-      console.log('✅ Existing user found:', user._id);
-    }
-
-    // Generate JWT token
-    const jwtToken = jwt.sign(
-      { id: user._id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    res.json({
-      success: true,
-      message: 'Login successful',
-      token: jwtToken,
-      user: {
-        id: user._id,
-        email: user.email,
-        name: user.name,
-        picture: user.picture
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Google OAuth error:', error.response?.data || error.message);
-    res.status(400).json({
-      success: false,
-      error: 'Authentication failed',
-      message: error.response?.data?.error || error.message
-    });
-  }
-});
-
 // Google login route - both /google and /google-login
 router.use('/google-oauth', googleAuthRouter);
 router.use('/google-login', googleAuthRouter);
@@ -313,109 +224,106 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
 });
 
 // Change password endpoint
-router.post(
-  '/change-password',
-  authenticateToken,
-  async (req, res) => {
-    try {
-      console.log('=== CHANGE PASSWORD REQUEST ===');
-      console.log('URL:', req.originalUrl);
-      console.log('Path:', req.path);
-      console.log('Params:', req.params);
-      console.log('User ID from token:', req.user._id);
-      console.log('Request body:', { ...req.body, oldPassword: '[REDACTED]', newPassword: '[REDACTED]', confirmPassword: '[REDACTED]' });
-      
-      const { oldPassword, newPassword, confirmPassword } = req.body;
-      const userId = req.user._id;
+router.post('/change-password', authenticateToken, async (req, res) => {
+  try {
+    console.log('=== CHANGE PASSWORD REQUEST ===');
+    console.log('URL:', req.originalUrl);
+    console.log('Path:', req.path);
+    console.log('Params:', req.params);
+    console.log('User ID from token:', req.user._id);
+    console.log('Request body:', {
+      ...req.body,
+      oldPassword: '[REDACTED]',
+      newPassword: '[REDACTED]',
+      confirmPassword: '[REDACTED]',
+    });
 
-      // Validate inputs
-      if (!oldPassword || !newPassword || !confirmPassword) {
-        console.log('Validation failed: Missing fields');
-        return res.status(400).json({
-          success: false,
-          message: 'All fields are required',
-        });
-      }
+    const { oldPassword, newPassword, confirmPassword } = req.body;
+    const userId = req.user._id;
 
-      if (newPassword !== confirmPassword) {
-        return res.status(400).json({
-          success: false,
-          message: 'New passwords do not match',
-        });
-      }
-
-      if (newPassword.length < 8) {
-        return res.status(400).json({
-          success: false,
-          message: 'Password must be at least 8 characters long',
-        });
-      }
-
-      // Get user with password hash
-      const user = await Users.findById(userId);
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found',
-        });
-      }
-
-      // Verify old password
-      const isPasswordValid = await bcrypt.compare(
-        oldPassword,
-        user.passwordHash
-      );
-      if (!isPasswordValid) {
-        return res.status(401).json({
-          success: false,
-          message: 'Current password is incorrect',
-        });
-      }
-
-      // Hash new password
-      const saltRounds = 12;
-      const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
-
-      // Update password
-      console.log('Updating password for user:', userId);
-      user.passwordHash = newPasswordHash;
-      user.updatedAt = new Date();
-      await user.save();
-
-      console.log('Password updated successfully for user:', userId);
-      res.json({
-        success: true,
-        message: 'Password changed successfully',
-      });
-    } catch (error) {
-      console.error('=== CHANGE PASSWORD ERROR ===');
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      res.status(500).json({
+    // Validate inputs
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      console.log('Validation failed: Missing fields');
+      return res.status(400).json({
         success: false,
-        message: 'Failed to change password',
-        error:
-          process.env.NODE_ENV === 'development'
-            ? error.message
-            : 'Internal server error',
+        message: 'All fields are required',
       });
     }
-  }
-);
 
-// Verify token endpoint
-router.get(
-  '/verify',
-  authenticateToken,
-  (req, res) => {
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New passwords do not match',
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters long',
+      });
+    }
+
+    // Get user with password hash
+    const user = await Users.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Verify old password
+    const isPasswordValid = await bcrypt.compare(
+      oldPassword,
+      user.passwordHash
+    );
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect',
+      });
+    }
+
+    // Hash new password
+    const saltRounds = 12;
+    const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password
+    console.log('Updating password for user:', userId);
+    user.passwordHash = newPasswordHash;
+    user.updatedAt = new Date();
+    await user.save();
+
+    console.log('Password updated successfully for user:', userId);
     res.json({
       success: true,
-      message: 'Token is valid',
-      data: {
-        user: req.user,
-      },
+      message: 'Password changed successfully',
+    });
+  } catch (error) {
+    console.error('=== CHANGE PASSWORD ERROR ===');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to change password',
+      error:
+        process.env.NODE_ENV === 'development'
+          ? error.message
+          : 'Internal server error',
     });
   }
-);
+});
+
+// Verify token endpoint
+router.get('/verify', authenticateToken, (req, res) => {
+  res.json({
+    success: true,
+    message: 'Token is valid',
+    data: {
+      user: req.user,
+    },
+  });
+});
 
 module.exports = router;

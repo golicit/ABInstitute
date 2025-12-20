@@ -204,7 +204,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         const client = (window as any).google.accounts.oauth2.initCodeClient({
           client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
           scope: 'openid email profile',
-          ux_mode: 'popup',
           callback: async (codeResponse: any) => {
             try {
               if (codeResponse.error) {
