@@ -17,11 +17,12 @@ const allowedOrigins = [
   'http://localhost:8083',
   'http://localhost:3000',
   'http://localhost:5173', // Vite dev server
+  'https://abdash.netlify.app/auth',
 ];
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  
+
   if (allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
@@ -29,11 +30,17 @@ app.use((req, res, next) => {
     // Allow all origins for non-credential requests
     res.header('Access-Control-Allow-Origin', origin || '*');
   }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+
+  res.header(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+  );
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Requested-With'
+  );
   res.header('Access-Control-Max-Age', '86400');
-  
+
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
