@@ -1,34 +1,48 @@
 const express = require('express');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
-const User = require('../../Model/user.js');
-const axios = require('axios');
+const User = require('../../Model/user');
 
 const router = express.Router();
+
+/**
+ * IMPORTANT:
+ * - Use ONLY client_id in constructor
+ * - client_secret is sent during token exchange
+ */
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Exchange authorization code for tokens
 router.post('/', async (req, res) => {
   try {
-    console.log('🔐 Google auth endpoint hit!');
+    console.log('🔐 Google OAuth request received');
+
     const { code } = req.body;
 
     if (!code) {
-      console.log('❌ No code provided');
       return res.status(400).json({
         success: false,
         error: 'Authorization code is required',
       });
     }
 
-    console.log('📝 Exchanging code for tokens...');
+    console.log('📝 Exchanging authorization code for tokens');
 
-    // Exchange code for tokens
+    // ✅ REQUIRED for Google Identity Services (GIS)
     const { tokens } = await client.getToken({
       code,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
       redirect_uri: 'postmessage',
     });
-    console.log('✅ Tokens received');
+
+    if (!tokens || !tokens.id_token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Failed to retrieve ID token from Google',
+      });
+    }
+
+    console.log('✅ Tokens received from Google');
 
     // Verify ID token
     const ticket = await client.verifyIdToken({
@@ -37,23 +51,23 @@ router.post('/', async (req, res) => {
     });
 
     const payload = ticket.getPayload();
-    console.log('👤 Google user:', payload.email);
+
+    if (!payload || !payload.email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email not provided by Google',
+      });
+    }
 
     const { email, name, picture, sub } = payload;
 
-    if (!email) {
-      console.log('❌ No email in token payload');
-      return res.status(400).json({
-        success: false,
-        error: 'Email not provided in token',
-      });
-    }
+    console.log('👤 Google user:', email);
 
     // Find or create user
     let user = await User.findOne({ email });
 
     if (!user) {
-      console.log('📝 Creating new user...');
+      console.log('📝 Creating new Google user');
       user = await User.create({
         email,
         name: name || 'Google User',
@@ -61,16 +75,15 @@ router.post('/', async (req, res) => {
         provider: 'google',
         googleId: sub,
       });
-      console.log('✅ New user created:', user._id);
     } else {
-      console.log('✅ Existing user found:', user._id);
+      // Update profile data if changed
       user.name = name || user.name;
       user.picture = picture || user.picture;
       user.googleId = sub;
       await user.save();
     }
 
-    // Generate JWT token
+    // Generate JWT
     const jwtToken = jwt.sign(
       {
         id: user._id,
@@ -78,12 +91,14 @@ router.post('/', async (req, res) => {
         provider: 'google',
       },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      {
+        expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+      }
     );
 
-    console.log('✅ JWT token generated');
+    console.log('✅ JWT generated, login successful');
 
-    res.json({
+    return res.json({
       success: true,
       token: jwtToken,
       user: {
@@ -94,10 +109,15 @@ router.post('/', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('❌ Error:', error.message);
-    res.status(500).json({
+    console.error(
+      '❌ Google OAuth error:',
+      error.response?.data || error.message
+    );
+
+    return res.status(500).json({
       success: false,
-      error: error.message || 'Google authentication failed',
+      error:
+        error.response?.data?.error || error.message || 'Google login failed',
     });
   }
 });
