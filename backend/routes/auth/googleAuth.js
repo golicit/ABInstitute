@@ -5,11 +5,7 @@ const User = require('../../Model/user.js');
 const axios = require('axios');
 
 const router = express.Router();
-const client = new OAuth2Client(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  'postmessage'
-);
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Exchange authorization code for tokens
 router.post('/', async (req, res) => {
@@ -19,16 +15,19 @@ router.post('/', async (req, res) => {
 
     if (!code) {
       console.log('❌ No code provided');
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Authorization code is required' 
+      return res.status(400).json({
+        success: false,
+        error: 'Authorization code is required',
       });
     }
 
     console.log('📝 Exchanging code for tokens...');
 
     // Exchange code for tokens
-    const { tokens } = await client.getToken(code);
+    const { tokens } = await client.getToken({
+      code,
+      redirect_uri: 'postmessage',
+    });
     console.log('✅ Tokens received');
 
     // Verify ID token
@@ -44,9 +43,9 @@ router.post('/', async (req, res) => {
 
     if (!email) {
       console.log('❌ No email in token payload');
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        error: 'Email not provided in token' 
+        error: 'Email not provided in token',
       });
     }
 
@@ -73,10 +72,10 @@ router.post('/', async (req, res) => {
 
     // Generate JWT token
     const jwtToken = jwt.sign(
-      { 
-        id: user._id, 
+      {
+        id: user._id,
         email: user.email,
-        provider: 'google'
+        provider: 'google',
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
