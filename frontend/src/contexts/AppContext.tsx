@@ -78,7 +78,7 @@ const REAL_COURSE: Course = {
   id: 'option-analysis-strategy',
   title: 'Option Analysis Strategy by A. Bhattacharjee',
   instructor: 'A. Bhattacharjee',
-  thumbnail: '/course/1.jpeg',
+  thumbnail: '/course/Cover.jpeg',
   description: 'Master the Systematic Trading Strategy by A. Bhattacharjee',
   price: 1499,
   progress: 0,
