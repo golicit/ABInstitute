@@ -1,73 +1,48 @@
 const express = require('express');
-const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 const User = require('../../Model/user');
 
 const router = express.Router();
-
-/**
- * IMPORTANT:
- * - Use ONLY client_id in constructor
- * - client_secret is sent during token exchange
- */
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 router.post('/', async (req, res) => {
   try {
     console.log('🔐 Google OAuth request received');
 
-    const { code } = req.body;
+    const { token } = req.body;
 
-    if (!code) {
+    if (!token) {
       return res.status(400).json({
         success: false,
-        error: 'Authorization code is required',
+        error: 'access_token_missing',
       });
     }
 
-    console.log('📝 Exchanging authorization code for tokens');
+    // 🔹 Fetch user info from Google using access_token
+    const googleRes = await axios.get(
+      'https://www.googleapis.com/oauth2/v3/userinfo',
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
 
-    // ✅ REQUIRED for Google Identity Services (GIS)
-    const { tokens } = await client.getToken({
-      code,
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: 'postmessage',
-    });
+    const { email, name, picture, sub } = googleRes.data;
 
-    if (!tokens || !tokens.id_token) {
-      return res.status(400).json({
+    if (!email) {
+      return res.status(401).json({
         success: false,
-        error: 'Failed to retrieve ID token from Google',
+        error: 'invalid_google_token',
       });
     }
-
-    console.log('✅ Tokens received from Google');
-
-    // Verify ID token
-    const ticket = await client.verifyIdToken({
-      idToken: tokens.id_token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-
-    const payload = ticket.getPayload();
-
-    if (!payload || !payload.email) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email not provided by Google',
-      });
-    }
-
-    const { email, name, picture, sub } = payload;
 
     console.log('👤 Google user:', email);
 
-    // Find or create user
+    // 🔹 Find or create user
     let user = await User.findOne({ email });
 
     if (!user) {
-      console.log('📝 Creating new Google user');
       user = await User.create({
         email,
         name: name || 'Google User',
@@ -76,14 +51,13 @@ router.post('/', async (req, res) => {
         googleId: sub,
       });
     } else {
-      // Update profile data if changed
       user.name = name || user.name;
       user.picture = picture || user.picture;
       user.googleId = sub;
       await user.save();
     }
 
-    // Generate JWT
+    // 🔹 Generate JWT
     const jwtToken = jwt.sign(
       {
         id: user._id,
@@ -95,8 +69,6 @@ router.post('/', async (req, res) => {
         expiresIn: process.env.JWT_EXPIRES_IN || '24h',
       }
     );
-
-    console.log('✅ JWT generated, login successful');
 
     return res.json({
       success: true,
@@ -110,14 +82,13 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error(
-      '❌ Google OAuth error:',
+      '❌ Google OAuth Error:',
       error.response?.data || error.message
     );
 
     return res.status(500).json({
       success: false,
-      error:
-        error.response?.data?.error || error.message || 'Google login failed',
+      error: 'google_login_failed',
     });
   }
 });

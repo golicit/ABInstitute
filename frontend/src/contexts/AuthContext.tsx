@@ -201,25 +201,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       }
 
       return new Promise((resolve) => {
-        const client = (window as any).google.accounts.oauth2.initCodeClient({
+        const client = (window as any).google.accounts.oauth2.initTokenClient({
           client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-          scope: 'openid email profile',
-          callback: async (codeResponse: any) => {
+          scope: 'email profile',
+          callback: async (tokenResponse: any) => {
             try {
-              if (codeResponse.error) {
-                console.error('Auth error:', codeResponse.error);
+              if (tokenResponse.error) {
+                console.error('Google auth error:', tokenResponse.error);
                 setLoading(false);
-                return resolve({ error: codeResponse.error });
+                return resolve({ error: tokenResponse.error });
               }
 
-              console.log('✅ Code received, sending to backend...');
+              console.log('✅ Access token received, sending to backend');
 
               const res = await fetch(
                 `${import.meta.env.VITE_BACKEND_URL}/api/auth/google-oauth`,
                 {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ code: codeResponse.code }),
+                  body: JSON.stringify({
+                    token: tokenResponse.access_token, // ✅ IMPORTANT
+                  }),
                 }
               );
 
@@ -234,20 +236,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
                 resolve({ error: null });
               } else {
                 setLoading(false);
-                resolve({ error: data.error || 'Login failed' });
+                resolve({ error: data.error || 'Google login failed' });
               }
             } catch (err) {
-              console.error('Error:', err);
+              console.error('Google login error:', err);
               setLoading(false);
               resolve({ error: err });
             }
           },
         });
 
-        client.requestCode();
+        client.requestAccessToken(); // ✅ THIS IS REQUIRED
       });
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Google sign-in error:', error);
       setLoading(false);
       return { error };
     }

@@ -41,6 +41,15 @@ app.use((req, res, next) => {
   next();
 });
 
+const cors = require('cors');
+
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+  })
+);
+
 // Test route
 app.get('/test', (req, res) => {
   res.json({
