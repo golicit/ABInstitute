@@ -36,20 +36,25 @@ const MyCourses = () => {
             variant={filter === 'all' ? 'default' : 'outline'}
             onClick={() => setFilter('all')}
             size='sm'
+            className='text-black'
           >
             All ({enrolledCourses.length})
           </Button>
+
           <Button
             variant={filter === 'active' ? 'default' : 'outline'}
             onClick={() => setFilter('active')}
             size='sm'
+            className='text-black'
           >
             Active
           </Button>
+
           <Button
             variant={filter === 'completed' ? 'default' : 'outline'}
             onClick={() => setFilter('completed')}
             size='sm'
+            className='text-black'
           >
             Completed
           </Button>
