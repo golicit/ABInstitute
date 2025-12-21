@@ -9,37 +9,30 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// // Enable CORS for frontend requests
-// const allowedOrigins = [
-//   'http://localhost:8080',
-//   'http://localhost:8081',
-//   'http://localhost:8082',
-//   'http://localhost:8083',
-//   'http://localhost:3000',
-//   'http://localhost:5173', // Vite dev server
-//   'https://abdash.netlify.app',
-// ];
+// Enable CORS for frontend requests
+const cors = require('cors');
 
-// app.use((req, res, next) => {
-//   const origin = req.headers.origin;
+const allowedOrigins = [
+  'https://abdash.netlify.app', // production
+  'http://localhost:8080', // local dev
+  'http://localhost:5173', // vite alt port (safe)
+];
 
-//   if (allowedOrigins.includes(origin)) {
-//     res.header('Access-Control-Allow-Origin', origin);
-//     res.header('Access-Control-Allow-Credentials', 'true');
-//   }
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow requests with no origin (mobile apps, Postman)
+      if (!origin) return callback(null, true);
 
-//   res.header(
-//     'Access-Control-Allow-Methods',
-//     'GET, POST, PUT, DELETE, OPTIONS, PATCH'
-//   );
-//   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
 
-//   if (req.method === 'OPTIONS') {
-//     return res.sendStatus(200);
-//   }
-
-//   next();
-// });
+      return callback(new Error('CORS not allowed'));
+    },
+    credentials: true,
+  })
+);
 
 const cors = require('cors');
 
