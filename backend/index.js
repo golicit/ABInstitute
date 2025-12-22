@@ -12,34 +12,34 @@ app.use(express.static('public'));
 // Enable CORS for frontend requests
 const cors = require('cors');
 
-const allowedOrigins = [
-  'https://abdash.netlify.app', // production
-  'http://localhost:8080', // local dev
-  'http://localhost:5173', // vite alt port (safe)
-];
-
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // allow requests with no origin (mobile apps, Postman)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error('CORS not allowed'));
-    },
-    credentials: true,
-  })
-);
+// const allowedOrigins = [
+//   'https://abdash.netlify.app', // production
+//   'http://localhost:8080', // local dev
+//   'http://localhost:5173', // vite alt port (safe)
+// ];
 
 // app.use(
 //   cors({
-//     origin: process.env.FRONTEND_URL,
+//     origin: function (origin, callback) {
+//       // allow requests with no origin (mobile apps, Postman)
+//       if (!origin) return callback(null, true);
+
+//       if (allowedOrigins.includes(origin)) {
+//         return callback(null, true);
+//       }
+
+//       return callback(new Error('CORS not allowed'));
+//     },
 //     credentials: true,
 //   })
 // );
+
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+  })
+);
 
 // Test route
 app.get('/test', (req, res) => {
