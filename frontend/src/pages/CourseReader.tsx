@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/contexts/AppContext';
+import EReaderSecurityWrapper from '@/components/security/EReaderSecurityWrapper';
 
 type Topic = {
   _id: string;
@@ -528,252 +529,258 @@ export default function CourseReader() {
   const isLocked = !!course && course.userHasAccess === false;
 
   return (
-    <main className='min-h-screen bg-gradient-to-br from-[#0b1f3a] to-[#090e1d] text-white p-4'>
-      <div className='max-w-[1300px] mx-auto grid grid-cols-12 gap-4'>
-        {/* MAIN READER (9 cols) */}
-        <section className='col-span-12 md:col-span-9'>
-          <Card className='bg-white/6 border-white/10 text-white'>
-            <CardContent className='p-3'>
-              <div className='flex items-center justify-between mb-3'>
-                <h2 className='text-xl font-semibold'>
-                  {activeTopic?.title ?? 'Loading...'}
-                </h2>
-                <div className='flex items-center gap-2'>
-                  <Button onClick={toggleFull}>
-                    {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-                  </Button>
-                </div>
-              </div>
-
-              <div
-                ref={viewerRef}
-                className='relative bg-black/50 rounded overflow-hidden flex justify-center items-center'
-                style={{ minHeight: '65vh' }}
-              >
-                {isLocked && (
-                  <div className='absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 backdrop-blur-sm'>
-                    <div className='text-center max-w-md'>
-                      <div className='text-2xl font-bold'>Course locked</div>
-                      <div className='text-sm mt-2'>
-                        This course requires purchase to view content.
-                      </div>
-                    </div>
-                    <div className='flex gap-3'>
-                      <Button onClick={() => navigate(`/payment/${courseId}`)}>
-                        Buy Course
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        onClick={() => navigate('/dashboard')}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
+    <EReaderSecurityWrapper>
+      <main className='min-h-screen bg-gradient-to-br from-[#0b1f3a] to-[#090e1d] text-white p-4'>
+        <div className='max-w-[1300px] mx-auto grid grid-cols-12 gap-4'>
+          {/* MAIN READER (9 cols) */}
+          <section className='col-span-12 md:col-span-9'>
+            <Card className='bg-white/6 border-white/10 text-white'>
+              <CardContent className='p-3'>
+                <div className='flex items-center justify-between mb-3'>
+                  <h2 className='text-xl font-semibold'>
+                    {activeTopic?.title ?? 'Loading...'}
+                  </h2>
+                  <div className='flex items-center gap-2'>
+                    <Button onClick={toggleFull}>
+                      {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                    </Button>
                   </div>
-                )}
+                </div>
 
                 <div
-                  className={`relative z-10 w-full h-full flex items-center justify-center ${
-                    isLocked ? 'filter blur-sm' : ''
-                  }`}
+                  ref={viewerRef}
+                  className='relative bg-black/50 rounded overflow-hidden flex justify-center items-center'
+                  style={{ minHeight: '65vh' }}
                 >
-                  {activeTopic ? (
-                    <div className='w-full h-full flex flex-col items-center justify-center p-4'>
-                      <TransformWrapper
-                        initialScale={1}
-                        wheel={{ step: 0.1 }}
-                        doubleClick={{ disabled: true }}
-                        pinch={{ step: 5 }}
-                      >
-                        <TransformComponent>
-                          <div className='flex items-center justify-center'>
-                            {activeTopic.images.map((imgUrl, idx) => {
-                              if (!shouldRenderImage(idx))
+                  {isLocked && (
+                    <div className='absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 backdrop-blur-sm'>
+                      <div className='text-center max-w-md'>
+                        <div className='text-2xl font-bold'>Course locked</div>
+                        <div className='text-sm mt-2'>
+                          This course requires purchase to view content.
+                        </div>
+                      </div>
+                      <div className='flex gap-3'>
+                        <Button
+                          onClick={() => navigate(`/payment/${courseId}`)}
+                        >
+                          Buy Course
+                        </Button>
+                        <Button
+                          variant='ghost'
+                          onClick={() => navigate('/dashboard')}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div
+                    className={`relative z-10 w-full h-full flex items-center justify-center ${
+                      isLocked ? 'filter blur-sm' : ''
+                    }`}
+                  >
+                    {activeTopic ? (
+                      <div className='w-full h-full flex flex-col items-center justify-center p-4'>
+                        <TransformWrapper
+                          initialScale={1}
+                          wheel={{ step: 0.1 }}
+                          doubleClick={{ disabled: true }}
+                          pinch={{ step: 5 }}
+                        >
+                          <TransformComponent>
+                            <div className='flex items-center justify-center'>
+                              {activeTopic.images.map((imgUrl, idx) => {
+                                if (!shouldRenderImage(idx))
+                                  return (
+                                    <div
+                                      key={idx}
+                                      style={{
+                                        display:
+                                          idx === currentPage
+                                            ? 'block'
+                                            : 'none',
+                                      }}
+                                    />
+                                  );
                                 return (
-                                  <div
+                                  <img
                                     key={idx}
+                                    src={imgUrl}
+                                    alt={`Page ${idx + 1}`}
+                                    loading='lazy'
                                     style={{
                                       display:
                                         idx === currentPage ? 'block' : 'none',
+                                      maxHeight: '75vh',
+                                      width: 'auto',
+                                      objectFit: 'contain',
                                     }}
+                                    className='rounded shadow-lg'
+                                    onContextMenu={(e) => e.preventDefault()}
+                                    draggable={false}
                                   />
                                 );
-                              return (
-                                <img
-                                  key={idx}
-                                  src={imgUrl}
-                                  alt={`Page ${idx + 1}`}
-                                  loading='lazy'
-                                  style={{
-                                    display:
-                                      idx === currentPage ? 'block' : 'none',
-                                    maxHeight: '75vh',
-                                    width: 'auto',
-                                    objectFit: 'contain',
-                                  }}
-                                  className='rounded shadow-lg'
-                                  onContextMenu={(e) => e.preventDefault()}
-                                  draggable={false}
-                                />
-                              );
-                            })}
-                          </div>
-                        </TransformComponent>
-                      </TransformWrapper>
+                              })}
+                            </div>
+                          </TransformComponent>
+                        </TransformWrapper>
 
-                      {/* controls */}
-                      <div className='flex flex-wrap md:flex-nowrap items-center gap-3 mt-4 w-full justify-center md:justify-start'>
-                        <Button
-                          className='bg-[#F6A32F] hover:bg-[#d88c25] text-white font-semibold px-4 py-2 rounded-md w-full sm:w-auto'
-                          disabled={currentPage === 0}
-                          onClick={() =>
-                            setCurrentPage((p) => Math.max(0, p - 1))
-                          }
-                        >
-                          Prev
-                        </Button>
-
-                        <div className='text-sm'>
-                          Page {currentPage + 1} / {totalPages || 0}
-                        </div>
-
-                        <Button
-                          className='bg-[#F6A32F] hover:bg-[#d88c25] text-white font-semibold px-4 py-2 rounded-md w-full sm:w-auto'
-                          disabled={currentPage >= totalPages - 1}
-                          onClick={() =>
-                            setCurrentPage((p) =>
-                              Math.min(totalPages - 1, p + 1)
-                            )
-                          }
-                        >
-                          Next
-                        </Button>
-
-                        {/* Next Topic button (only on last page and when there is a next topic) */}
-                        {currentPage === totalPages - 1 &&
-                          activeTopicIndex < topics.length - 1 && (
-                            <Button
-                              className='bg-[#F6A32F] hover:bg-[#d88c25] text-white font-semibold px-4 py-2 rounded-md w-full sm:w-auto'
-                              onClick={() => {
-                                setActiveTopicIndex(activeTopicIndex + 1);
-                                setCurrentPage(0);
-                              }}
-                            >
-                              Next Topic →
-                            </Button>
-                          )}
-
-                        <div className='w-full sm:w-auto'>
-                          <div className='text-xs text-white/80'>
-                            Topic progress:
-                          </div>
-                          <div className='w-44 bg-white/20 h-3 rounded mt-1 overflow-hidden'>
-                            <div
-                              style={{
-                                width: `${progress[activeTopic._id] || 0}%`,
-                              }}
-                              className='h-3 bg-[#F6A32F]'
-                            />
-                          </div>
-                        </div>
-
-                        <Button
-                          className='ml-4 bg-transparent border border-white/20 text-white px-3 py-2 rounded-md'
-                          onClick={() => markTopicComplete(activeTopic._id)}
-                        >
-                          Mark Topic Complete
-                        </Button>
-                      </div>
-
-                      {/* notes */}
-                      <div className='w-full mt-4'>
-                        <Label className='text-white/90'>
-                          Notes for this page
-                        </Label>
-                        <div className='flex gap-2 mt-2'>
-                          <Input
-                            value={
-                              (notes[activeTopic._id] &&
-                                notes[activeTopic._id][currentPage]) ||
-                              ''
+                        {/* controls */}
+                        <div className='flex flex-wrap md:flex-nowrap items-center gap-3 mt-4 w-full justify-center md:justify-start'>
+                          <Button
+                            className='bg-[#F6A32F] hover:bg-[#d88c25] text-white font-semibold px-4 py-2 rounded-md w-full sm:w-auto'
+                            disabled={currentPage === 0}
+                            onClick={() =>
+                              setCurrentPage((p) => Math.max(0, p - 1))
                             }
-                            onChange={(e) =>
-                              handleNoteChange(
-                                activeTopic._id,
-                                currentPage,
-                                e.target.value
+                          >
+                            Prev
+                          </Button>
+
+                          <div className='text-sm'>
+                            Page {currentPage + 1} / {totalPages || 0}
+                          </div>
+
+                          <Button
+                            className='bg-[#F6A32F] hover:bg-[#d88c25] text-white font-semibold px-4 py-2 rounded-md w-full sm:w-auto'
+                            disabled={currentPage >= totalPages - 1}
+                            onClick={() =>
+                              setCurrentPage((p) =>
+                                Math.min(totalPages - 1, p + 1)
                               )
                             }
-                            placeholder='Write and save notes for this page...'
-                            className='bg-white/5 text-white'
-                          />
-                          <Button
-                            onClick={() =>
-                              saveNote(activeTopic._id, currentPage)
-                            }
-                            disabled={loadingSave}
-                            className='bg-[#F6A32F] text-white'
                           >
-                            Save
+                            Next
+                          </Button>
+
+                          {/* Next Topic button (only on last page and when there is a next topic) */}
+                          {currentPage === totalPages - 1 &&
+                            activeTopicIndex < topics.length - 1 && (
+                              <Button
+                                className='bg-[#F6A32F] hover:bg-[#d88c25] text-white font-semibold px-4 py-2 rounded-md w-full sm:w-auto'
+                                onClick={() => {
+                                  setActiveTopicIndex(activeTopicIndex + 1);
+                                  setCurrentPage(0);
+                                }}
+                              >
+                                Next Topic →
+                              </Button>
+                            )}
+
+                          <div className='w-full sm:w-auto'>
+                            <div className='text-xs text-white/80'>
+                              Topic progress:
+                            </div>
+                            <div className='w-44 bg-white/20 h-3 rounded mt-1 overflow-hidden'>
+                              <div
+                                style={{
+                                  width: `${progress[activeTopic._id] || 0}%`,
+                                }}
+                                className='h-3 bg-[#F6A32F]'
+                              />
+                            </div>
+                          </div>
+
+                          <Button
+                            className='ml-4 bg-transparent border border-white/20 text-white px-3 py-2 rounded-md'
+                            onClick={() => markTopicComplete(activeTopic._id)}
+                          >
+                            Mark Topic Complete
                           </Button>
                         </div>
-                        <div className='text-xs mt-2 text-white/70'>
-                          Notes saved locally if backend unavailable.
+
+                        {/* notes */}
+                        <div className='w-full mt-4'>
+                          <Label className='text-white/90'>
+                            Notes for this page
+                          </Label>
+                          <div className='flex gap-2 mt-2'>
+                            <Input
+                              value={
+                                (notes[activeTopic._id] &&
+                                  notes[activeTopic._id][currentPage]) ||
+                                ''
+                              }
+                              onChange={(e) =>
+                                handleNoteChange(
+                                  activeTopic._id,
+                                  currentPage,
+                                  e.target.value
+                                )
+                              }
+                              placeholder='Write and save notes for this page...'
+                              className='bg-white/5 text-white'
+                            />
+                            <Button
+                              onClick={() =>
+                                saveNote(activeTopic._id, currentPage)
+                              }
+                              disabled={loadingSave}
+                              className='bg-[#F6A32F] text-white'
+                            >
+                              Save
+                            </Button>
+                          </div>
+                          <div className='text-xs mt-2 text-white/70'>
+                            Notes saved locally if backend unavailable.
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div>Loading topic...</div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* SIDEBAR (3 cols) */}
-        <aside className='col-span-12 md:col-span-3'>
-          <Card className='sticky top-6 bg-white/6 border-white/10 text-white'>
-            <CardContent className='p-3 space-y-3 max-h-[80vh] overflow-y-auto'>
-              <div className='flex justify-between items-center'>
-                <div className='font-semibold'>Topics</div>
-                <div className='text-xs text-white/80'>{topics.length}</div>
-              </div>
-
-              {topics.map((t, idx) => {
-                const percent = progress[t._id] || 0;
-                const active = idx === activeTopicIndex;
-                return (
-                  <div
-                    key={t._id}
-                    className={`p-2 rounded-md cursor-pointer ${
-                      active ? 'bg-white/10' : 'bg-white/5'
-                    }`}
-                    onClick={() => {
-                      setActiveTopicIndex(idx);
-                      setCurrentPage(0);
-                    }}
-                  >
-                    <div className='flex justify-between'>
-                      <div className='font-medium text-white'>{t.title}</div>
-                      <div className='text-xs text-white/80'>{percent}%</div>
-                    </div>
-                    <div className='w-full bg-white/10 h-2 rounded mt-1 overflow-hidden'>
-                      <div
-                        style={{ width: `${percent}%` }}
-                        className='h-2 bg-[#F6A32F]'
-                      />
-                    </div>
-                    <div className='text-xs mt-1 text-white/70'>
-                      {t.images.length} pages
-                    </div>
+                    ) : (
+                      <div>Loading topic...</div>
+                    )}
                   </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        </aside>
-      </div>
-    </main>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+
+          {/* SIDEBAR (3 cols) */}
+          <aside className='col-span-12 md:col-span-3'>
+            <Card className='sticky top-6 bg-white/6 border-white/10 text-white'>
+              <CardContent className='p-3 space-y-3 max-h-[80vh] overflow-y-auto'>
+                <div className='flex justify-between items-center'>
+                  <div className='font-semibold'>Topics</div>
+                  <div className='text-xs text-white/80'>{topics.length}</div>
+                </div>
+
+                {topics.map((t, idx) => {
+                  const percent = progress[t._id] || 0;
+                  const active = idx === activeTopicIndex;
+                  return (
+                    <div
+                      key={t._id}
+                      className={`p-2 rounded-md cursor-pointer ${
+                        active ? 'bg-white/10' : 'bg-white/5'
+                      }`}
+                      onClick={() => {
+                        setActiveTopicIndex(idx);
+                        setCurrentPage(0);
+                      }}
+                    >
+                      <div className='flex justify-between'>
+                        <div className='font-medium text-white'>{t.title}</div>
+                        <div className='text-xs text-white/80'>{percent}%</div>
+                      </div>
+                      <div className='w-full bg-white/10 h-2 rounded mt-1 overflow-hidden'>
+                        <div
+                          style={{ width: `${percent}%` }}
+                          className='h-2 bg-[#F6A32F]'
+                        />
+                      </div>
+                      <div className='text-xs mt-1 text-white/70'>
+                        {t.images.length} pages
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </aside>
+        </div>
+      </main>
+    </EReaderSecurityWrapper>
   );
 }
