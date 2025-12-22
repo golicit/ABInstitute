@@ -622,9 +622,9 @@ export default function CourseReader() {
                       </TransformWrapper>
 
                       {/* controls */}
-                      <div className='flex items-center gap-3 mt-4'>
+                      <div className='flex flex-wrap md:flex-nowrap items-center gap-3 mt-4 w-full justify-center md:justify-start'>
                         <Button
-                          className='ml-4 bg-[#F6A32F] hover:bg-[#d88c25] text-white font-semibold px-4 py-2 rounded-md'
+                          className='bg-[#F6A32F] hover:bg-[#d88c25] text-white font-semibold px-4 py-2 rounded-md w-full sm:w-auto'
                           disabled={currentPage === 0}
                           onClick={() =>
                             setCurrentPage((p) => Math.max(0, p - 1))
@@ -638,7 +638,7 @@ export default function CourseReader() {
                         </div>
 
                         <Button
-                          className='ml-4 bg-[#F6A32F] hover:bg-[#d88c25] text-white font-semibold px-4 py-2 rounded-md'
+                          className='bg-[#F6A32F] hover:bg-[#d88c25] text-white font-semibold px-4 py-2 rounded-md w-full sm:w-auto'
                           disabled={currentPage >= totalPages - 1}
                           onClick={() =>
                             setCurrentPage((p) =>
@@ -653,7 +653,7 @@ export default function CourseReader() {
                         {currentPage === totalPages - 1 &&
                           activeTopicIndex < topics.length - 1 && (
                             <Button
-                              className='ml-4 bg-[#F6A32F] hover:bg-[#d88c25] text-white font-semibold px-4 py-2 rounded-md'
+                              className='bg-[#F6A32F] hover:bg-[#d88c25] text-white font-semibold px-4 py-2 rounded-md w-full sm:w-auto'
                               onClick={() => {
                                 setActiveTopicIndex(activeTopicIndex + 1);
                                 setCurrentPage(0);
@@ -663,7 +663,7 @@ export default function CourseReader() {
                             </Button>
                           )}
 
-                        <div className='ml-4'>
+                        <div className='w-full sm:w-auto'>
                           <div className='text-xs text-white/80'>
                             Topic progress:
                           </div>

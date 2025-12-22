@@ -244,6 +244,29 @@ const Dashboard = () => {
         ))}
       </div>
 
+      {/* DASHBOARD BANNER IMAGE */}
+      <div className='w-full flex justify-center'>
+        <div className='relative w-full max-w-6xl rounded-2xl overflow-hidden shadow-2xl'>
+          <img
+            src='/dashboard-banner.jpeg'
+            alt='Learning Banner'
+            className='
+              w-full
+              h-[220px]
+              sm:h-[300px]
+              md:h-[420px]
+              lg:h-[480px]
+              xl:h-[520px]
+              object-cover
+              object-top
+            '
+          />
+
+          {/* Very light overlay (optional, keeps image sharp) */}
+          <div className='absolute inset-0 bg-black/10' />
+        </div>
+      </div>
+
       {/* CONTINUE LEARNING */}
       <h2 className='text-2xl font-bold text-white'>Continue Learning</h2>
 
