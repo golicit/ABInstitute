@@ -13,7 +13,6 @@ import {
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import Logo from '/logo.jpg';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -50,7 +49,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
 
         <div className='flex items-center gap-2 h-12 w-12'>
           <img
-            src={Logo}
+            src='/logo.jpg'
             alt='AB Institute Logo'
             className='h-full w-full rounded-lg object-cover'
           />
