@@ -215,7 +215,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
               console.log('✅ Access token received, sending to backend');
 
               const res = await fetch(
-                `${import.meta.env.VITE_BACKEND_URL}/api/auth/google-oauth`,
+                `${import.meta.env.VITE_API_BASE_URL}/api/auth/google-oauth`,
                 {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },

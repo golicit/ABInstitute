@@ -5,6 +5,7 @@ import {
   CreditCard,
   User,
   LogOut,
+  Presentation,
   X,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
@@ -22,11 +23,14 @@ const menuItems = [
   { icon: Home, label: 'Dashboard', path: '/dashboard' },
   { icon: BookOpen, label: 'My Courses', path: '/dashboard/my-courses' },
   { icon: ShoppingCart, label: 'Explore Courses', path: '/dashboard/explore' },
+
   {
-    icon: CreditCard,
+    icon: Presentation,
     label: 'Webinar schedule & Zoom link',
     path: '/dashboard/payments',
   },
+  { icon: CreditCard, label: 'Payment History', path: '/dashboard/payments' },
+
   { icon: User, label: 'Profile', path: '/dashboard/profile' },
 ];
 
@@ -34,82 +38,56 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = async () => {
-    await signOut();
-    navigate('/auth');
-    onClose(); // Close sidebar after logout
-  };
-
   return (
     <>
-      {/* Mobile overlay */}
       {isOpen && (
         <div
-          className='fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden'
+          className='fixed inset-0 z-40 bg-background/80 backdrop-blur md:hidden'
           onClick={onClose}
         />
       )}
 
-      {/* Sidebar */}
       <aside
-        // Updated BG to your requested orange
         className={cn(
-          'fixed left-0 top-0 z-50 h-full w-64 bg-[#F6A32F] text-white shadow-xl transition-transform duration-300 md:sticky md:top-16 md:h-[calc(100vh-4rem)] md:translate-x-0',
+          'fixed left-0 top-0 z-50 h-full w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-transform',
+          'md:translate-x-0 md:sticky md:top-16 md:h-[calc(100vh-4rem)]',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className='flex h-16 items-center justify-between border-b border-white/20 px-6 md:hidden'>
-          <div className='flex items-center gap-2'>
-            {/* Kept the logo text white, adjusted BG for contrast */}
-            <div className='flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#F6A32F] font-bold text-sm'>
-              AB
-            </div>
-            <span className='text-lg font-semibold'>AB Institute</span>
-          </div>
-          {/* Button icon is white */}
-          <Button
-            variant='ghost'
-            size='icon'
-            onClick={onClose}
-            className='text-white hover:bg-white/10'
-          >
+        <div className='md:hidden flex items-center justify-between h-16 px-4 border-b border-sidebar-border'>
+          <span className='font-semibold'>AB Institute</span>
+          <Button variant='ghost' size='icon' onClick={onClose}>
             <X className='h-5 w-5' />
           </Button>
         </div>
 
-        <nav className='space-y-1 p-4'>
+        <nav className='p-4 space-y-1'>
           {menuItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               end={item.path === '/dashboard'}
-              // Text color is white/80 for contrast
-              // Hover/Active BG is a slightly lighter shade of the orange, or a muted neutral
-              className='flex items-center gap-3 rounded-lg px-4 py-3 text-white/90 transition-all hover:bg-[#E0942C] hover:text-white'
-              // Active class uses the tertiary accent for clear identification
-              activeClassName='bg-[#F67315] text-white font-medium hover:bg-[#F67315]'
-              onClick={() => {
-                if (window.innerWidth < 768) {
-                  onClose();
-                }
-              }}
+              className='flex items-center gap-3 rounded-lg px-4 py-3 text-sm transition-colors hover:bg-sidebar-accent'
+              activeClassName='bg-sidebar-primary text-sidebar-primary-foreground font-medium'
+              onClick={() => window.innerWidth < 768 && onClose()}
             >
               <item.icon className='h-5 w-5' />
-              <span>{item.label}</span>
+              {item.label}
             </NavLink>
           ))}
 
-          <div className='pt-4'>
-            <Button
-              variant='ghost'
-              // Text color is white/80 for contrast
-              className='w-full justify-start gap-3 text-white/90 hover:bg-[#E0942C] hover:text-white'
-              onClick={handleLogout}
-            >
-              <LogOut className='h-5 w-5' />
-              <span>Logout</span>
-            </Button>
-          </div>
+          <Button
+            variant='ghost'
+            className='w-full justify-start gap-3 mt-4'
+            onClick={async () => {
+              await signOut();
+              navigate('/auth');
+              onClose();
+            }}
+          >
+            <LogOut className='h-5 w-5' />
+            Logout
+          </Button>
         </nav>
 
         {/* Footer */}

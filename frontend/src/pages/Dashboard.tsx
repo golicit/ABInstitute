@@ -64,9 +64,9 @@ const ProgressRing = ({
   return (
     <svg width={size} height={size}>
       <defs>
-        <linearGradient id='grad1' x1='0%' x2='100%'>
-          <stop offset='0%' stopColor='#F6A32F' />
-          <stop offset='100%' stopColor='#F67315' />
+        <linearGradient id='grad1' x1='0%' y1='0%' x2='100%' y2='0%'>
+          <stop offset='0%' stopColor='hsl(var(--primary))' />
+          <stop offset='100%' stopColor='hsl(var(--accent))' />
         </linearGradient>
       </defs>
 
@@ -214,34 +214,13 @@ const Dashboard = () => {
   return (
     <div className='space-y-8'>
       {/* HERO */}
-      <div className='rounded-xl bg-gradient-to-br from-[#071428] to-[#0b2032] p-8 text-white shadow-xl'>
+      <div className='rounded-xl bg-gradient-primary/80 p-8 text-white shadow-lg'>
         <h1 className='text-3xl font-bold mb-2'>
           Welcome back, {user.name.split(' ')[0]} 👋
         </h1>
         <p className='text-white/70'>
           Continue your progress — your courses, achievements and certificates.
         </p>
-      </div>
-
-      {/* STATS GRID */}
-      <div className='grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'>
-        {stats.map((s) => (
-          <Card
-            key={s.title}
-            className='bg-white/10 border border-white/10 backdrop-blur-lg rounded-xl shadow'
-          >
-            <CardContent className='flex items-center gap-4 p-6'>
-              <div className='rounded-lg p-3 bg-gradient-to-br from-[#F6A32F]/20 to-[#F67315]/10'>
-                <s.icon className='h-6 w-6 text-white' />
-              </div>
-
-              <div>
-                <p className='text-sm text-white/70'>{s.title}</p>
-                <p className='text-2xl font-bold text-white'>{s.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
       </div>
 
       {/* DASHBOARD BANNER IMAGE */}
@@ -267,12 +246,33 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* STATS GRID */}
+      <div className='grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'>
+        {stats.map((s) => (
+          <Card
+            key={s.title}
+            className='bg-card border border-border shadow-md rounded-xl shadow'
+          >
+            <CardContent className='flex items-center gap-4 p-6'>
+              <div className='rounded-lg p-3 bg-gradient-to-br from-[#F6A32F]/20 to-[#F67315]/10'>
+                <s.icon className='h-6 w-6 text-white' />
+              </div>
+
+              <div>
+                <p className='text-sm text-white/70'>{s.title}</p>
+                <p className='text-2xl font-bold text-white'>{s.value}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       {/* CONTINUE LEARNING */}
       <h2 className='text-2xl font-bold text-white'>Continue Learning</h2>
 
       <div className='grid gap-4 md:grid-cols-2'>
         {continueLearning.length === 0 && (
-          <Card className='bg-white/10 border border-white/10 backdrop-blur-lg p-6 text-white/70'>
+          <Card className='bg-card border border-border shadow-md p-6 text-white/70'>
             No active courses.
           </Card>
         )}
@@ -311,13 +311,13 @@ const Dashboard = () => {
                     <div className='w-full bg-white/10 rounded h-2 mt-2 overflow-hidden'>
                       <div
                         style={{ width: `${course.progress}%` }}
-                        className='h-2 bg-[#F6A32F]'
+                        className='h-2 bg-primary'
                       />
                     </div>
                   </div>
 
                   <Button
-                    className='bg-[#F6A32F] text-white'
+                    className='bg-primary text-primary-foreground hover:bg-primary/90'
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/dashboard/course/${course.id}`);
@@ -333,7 +333,7 @@ const Dashboard = () => {
       </div>
 
       {/* CERTIFICATES */}
-      <Card className='bg-white/10 border border-white/10 backdrop-blur-lg p-6'>
+      <Card className='bg-card border border-border shadow-md p-6'>
         <CardHeader>
           <CardTitle className='text-white'>Certificates</CardTitle>
         </CardHeader>

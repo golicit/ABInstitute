@@ -116,12 +116,6 @@ export default function EReaderSecurityWrapper({ children }: Props) {
 
       {/* 🔐 Protected content */}
       {children}
-
-      {/* 📜 Legal disclaimer */}
-      <p className='mt-4 text-xs text-center text-white/60'>
-        Screenshots, screen recording, copying or redistribution of this content
-        is prohibited. Repeated violations may result in account termination.
-      </p>
     </div>
   );
 }

@@ -8,56 +8,78 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 220 15% 20%;
+    /* Backgrounds */
+    --background: 215 45% 12%;        /* Deep navy */
+    --foreground: 210 40% 98%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 15% 20%;
+    --card: 215 35% 18%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 20%;
+    --popover: 215 35% 18%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 217 91% 35%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary (buttons, active states) */
+    --primary: 174 70% 45%;           /* Teal */
+    --primary-foreground: 215 45% 12%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 220 15% 20%;
+    /* Secondary (sections, subtle bg) */
+    --secondary: 215 40% 20%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 220 10% 46%;
+    /* Muted text */
+    --muted: 215 25% 25%;
+    --muted-foreground: 215 15% 70%;
 
-    --accent: 25 95% 53%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent (icons, small highlights only) */
+    --accent: 174 70% 45%;
+    --accent-foreground: 215 45% 12%;
 
-    --success: 142 71% 45%;
+    /* Success */
+    --success: 142 72% 45%;
     --success-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
+    /* Errors */
+    --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 217 91% 35%;
+    /* Borders & rings */
+    --border: 215 30% 25%;
+    --input: 215 30% 25%;
+    --ring: 174 70% 45%;
 
+    /* Radius */
     --radius: 0.75rem;
 
-    --sidebar-background: 217 91% 35%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 0 0% 100%;
-    --sidebar-primary-foreground: 217 91% 35%;
-    --sidebar-accent: 217 91% 40%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 217 91% 30%;
-    --sidebar-ring: 25 95% 53%;
+    /* Sidebar */
+    --sidebar-background: 215 45% 14%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 174 70% 45%;
+    --sidebar-primary-foreground: 215 45% 12%;
+    --sidebar-accent: 215 40% 20%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 215 30% 25%;
+    --sidebar-ring: 174 70% 45%;
 
-    /* Custom design tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(217 91% 35%) 0%, hsl(217 91% 45%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(25 95% 53%) 0%, hsl(35 95% 60%) 100%);
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+    /* Gradients */
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(215 45% 14%) 0%,
+      hsl(215 45% 20%) 100%
+    );
+
+    --gradient-accent: linear-gradient(
+      135deg,
+      hsl(174 70% 45%) 0%,
+      hsl(174 70% 55%) 100%
+    );
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.15);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.25);
+    --shadow-lg: 0 10px 30px rgba(0,0,0,0.35);
+    --shadow-xl: 0 20px 40px rgba(0,0,0,0.45);
   }
+}
 
   .dark {
     --background: 220 25% 10%;
@@ -100,7 +122,6 @@ All colors MUST be HSL.
     --sidebar-border: 220 20% 20%;
     --sidebar-ring: 25 95% 53%;
   }
-}
 
 @layer base {
   * {

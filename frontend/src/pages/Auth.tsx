@@ -15,7 +15,8 @@ import {
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { z } from 'zod';
-import { BookOpen } from 'lucide-react';
+import Lottie from 'lottie-react';
+import loadingAnimation from '@/assets/loading.json';
 
 const loginSchema = z.object({
   email: z.string().trim().email({ message: 'Invalid email address' }),
@@ -106,6 +107,23 @@ const Auth = () => {
     }
   };
 
+  // Payment status check function
+  const checkPaymentStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return { isPaid: false };
+
+      const res = await fetch('/api/payment/status', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return await res.json();
+    } catch (error) {
+      return { isPaid: false };
+    }
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
@@ -120,12 +138,22 @@ const Auth = () => {
       );
 
       if (!error) {
-        // Redirect to profile setup page
-        navigate('/profile-setup', {
-          state: {
-            email: validated.email,
-            name: validated.name,
-          },
+        // Check if payment is required
+        const paymentCheck = await checkPaymentStatus();
+
+        if (paymentCheck.isPaid) {
+          // User already paid, go to dashboard
+          navigate('/dashboard');
+        } else {
+          // Redirect to payment page
+          navigate('/payment');
+        }
+      } else {
+        // Handle signup error
+        toast({
+          variant: 'destructive',
+          title: 'Signup failed',
+          description: error,
         });
       }
     } catch (err) {
@@ -178,6 +206,21 @@ const Auth = () => {
 
   return (
     <div className='min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4'>
+      {isLoading && (
+        <div className='fixed inset-0 z-[1] flex items-center justify-center bg-black/40 backdrop-blur-sm'>
+          <div className='bg-white rounded-2xl shadow-xl px-10 py-8 flex flex-col items-center gap-4'>
+            <Lottie
+              animationData={loadingAnimation}
+              loop
+              className='w-28 h-28'
+            />
+            <p className='text-sm font-medium text-foreground'>
+              Please wait, processing...
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className='w-full max-w-md'>
         <div className='text-center mb-6'>
           <div className='flex items-center justify-center gap-1 mb-0 P-0'>

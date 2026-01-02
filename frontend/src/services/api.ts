@@ -9,7 +9,8 @@ export const apiClient = axios.create({
 
 // Add request interceptor to include auth token
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
+  const token = localStorage.getItem('token');
+  console.log('auth token ', token);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -41,6 +42,7 @@ interface ApiResponse<T> {
   error?: string;
 }
 
+// Update the User interface
 interface User {
   _id: string;
   name: string;
@@ -49,7 +51,34 @@ interface User {
   createdAt: string;
   updatedAt: string;
   profileCompleted: boolean;
+  
+  // Payment fields
+  paymentStatus: 'pending' | 'paid' | 'failed';
+  isPaidUser: boolean;
+  lastPaymentDate?: string;
+  payments?: string[];
+  
+  // Profile fields
+  fullName?: string;
+  phone?: string;
+  gender?: string;
+  city?: string;
+  state?: string;
+  profileImage?: string;
+  provider?: 'local' | 'google';
+  picture?: string;
+  
+  // Orders
+  orders?: Array<{
+    orderId: string;
+    amount: number;
+    currency: string;
+    status: string;
+    createdAt: Date;
+    paymentId: string;
+  }>;
 }
+
 
 interface AuthData {
   user: User;
@@ -116,7 +145,7 @@ export const authAPI = {
 
       if (res.data.success && res.data.data) {
         // Store token and user data in localStorage
-        localStorage.setItem("auth_token", res.data.data.token);
+        localStorage.setItem("token", res.data.data.token);
         localStorage.setItem("user_data", JSON.stringify(res.data.data.user));
         
         toast({
@@ -150,7 +179,7 @@ export const authAPI = {
 
       if (res.data.success && res.data.data) {
         // Store token and user data in localStorage
-        localStorage.setItem("auth_token", res.data.data.token);
+        localStorage.setItem("token", res.data.data.token);
         localStorage.setItem("user_data", JSON.stringify(res.data.data.user));
         
         toast({
@@ -178,7 +207,7 @@ export const authAPI = {
   async googleLogin(token: string, userInfo: any): Promise<ApiResponse<any>> {
     try {
       const res = await apiClient.post<ApiResponse<any>>(
-        `${import.meta.env.VITE_BACKEND_URL}/auth/google`,
+        `${import.meta.env.VITE_API_BASE_URL}/auth/google`,
         { token, userInfo }
       );
 
@@ -240,7 +269,7 @@ export const authAPI = {
 
   // LOGOUT
   logout(): void {
-    localStorage.removeItem("auth_token");
+    localStorage.removeItem("token");
     localStorage.removeItem("user_data");
     toast({
       title: "Logged out",
@@ -256,9 +285,11 @@ export const authAPI = {
 
   // GET TOKEN (fallback only)
   getToken(): string | null {
-    return localStorage.getItem("auth_token");
+    return localStorage.getItem("token");
   },
 };
+
+
 
 
 

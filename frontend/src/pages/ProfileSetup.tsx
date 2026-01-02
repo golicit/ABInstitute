@@ -88,7 +88,7 @@ export default function ProfileSetup() {
       }
 
       // Save to backend (placeholder)
-      await apiClient.post('/user/profile', {
+      await apiClient.post('/api/user/profile', {
         email: formData.email,
         fullName: formData.fullName,
         phone: formData.phone,
