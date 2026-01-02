@@ -1,8 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const connectMongo = require('./DB');
-const Users = require('./Model/user');
-const Courses = require('./Model/course');
 require('dotenv').config();
 
 const app = express();
@@ -13,26 +11,27 @@ app.use(express.static('public'));
 const cors = require('cors');
 
 const allowedOrigins = [
-  'https://abdash.netlify.app', // production frontend
-  'http://localhost:8080', // local frontend
-  'http://localhost:5173', // vite (optional but safe)
+  'http://localhost:3000',
+  'https://abdash.netlify.app',
+  'http://localhost:8080',
+  'http://localhost:5173',
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (Postman, mobile apps, curl)
       if (!origin) return callback(null, true);
-
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-
       return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
   })
 );
+
+// IMPORTANT: Add this middleware to handle raw body for webhooks
+app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
 
 // Test route
 app.get('/test', (req, res) => {
@@ -40,13 +39,38 @@ app.get('/test', (req, res) => {
     message: 'Server is working!',
     timestamp: new Date(),
     port: process.env.PORT,
+    razorpay: process.env.RAZORPAY_KEY_ID ? 'Configured' : 'Not configured',
   });
 });
+
+// Health check route
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date(),
+    service: 'payment-api',
+    environment: process.env.NODE_ENV || 'development',
+  });
+});
+
+// Debug: Log environment
+console.log('=== Environment Check ===');
+console.log('RAZORPAY_KEY_ID:', process.env.RAZORPAY_KEY_ID ? '✓' : '✗');
+console.log('MONGODB_URI:', process.env.MONGODB_URI ? '✓' : '✗');
+console.log('PORT:', process.env.PORT || 3000);
+console.log('=========================');
 
 // API Routes with /api prefix
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/profile'));
 app.use('/api/courses', require('./routes/course'));
+app.use('/api/payment', require('./routes/payment'));
+
+// Import models
+const Users = require('./Model/user');
+const Courses = require('./Model/course');
+
+// ============== USER ENDPOINTS ==============
 
 // Get all users
 app.get('/', async (req, res) => {
@@ -96,6 +120,7 @@ app.post('/', async (req, res) => {
       Phone,
       passwordHash,
       role: role || 'user',
+      paymentStatus: 'pending',
       createdAt: new Date(),
       updatedAt: new Date(),
       orders: orders || [],
@@ -412,23 +437,43 @@ app.delete('/courses/:id', async (req, res) => {
   }
 });
 
+// ============== ERROR HANDLING MIDDLEWARE ==============
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('❌ Server error:', err.stack);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+  });
+});
+
 // Start server
 async function startServer() {
   try {
     console.log('Connecting to MongoDB...');
     await connectMongo();
-    console.log(' Database connected successfully');
+    console.log('✅ Database connected successfully');
 
     const PORT = process.env.PORT || 3000;
 
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(` Server is running on port ${PORT}`);
-      console.log(` API available at: http://localhost:${PORT}`);
-      console.log(` Test endpoint: http://localhost:${PORT}/test`);
-      console.log(` Web interface: http://localhost:${PORT}/index.html`);
+      console.log(`🚀 Server is running on port ${PORT}`);
+      console.log(`🌐 API available at: http://localhost:${PORT}`);
+      console.log(`🔗 Test endpoint: http://localhost:${PORT}/test`);
+      console.log(`💳 Payment endpoints: http://localhost:${PORT}/api/payment`);
+      console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+      console.log('\n=== PAYMENT SYSTEM READY ===');
+      console.log(
+        `Razorpay Key ID: ${
+          process.env.RAZORPAY_KEY_ID ? 'Configured' : 'NOT CONFIGURED!'
+        }`
+      );
+      console.log('============================\n');
     });
   } catch (error) {
-    console.error(' Failed to start server:', error);
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 }

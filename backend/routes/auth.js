@@ -108,6 +108,7 @@ router.post(
 );
 
 // Login endpoint
+// In your login endpoint (in routes/auth.js), after successful login:
 router.post(
   '/login',
   authLimiter,
@@ -147,6 +148,7 @@ router.post(
         data: {
           user: userResponse,
           token,
+          isPaidUser: user.isPaidUser, // Add payment status to response
         },
       });
     } catch (error) {

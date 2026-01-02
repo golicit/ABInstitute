@@ -6,16 +6,40 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
 
   // AUTH FIELDS
-  passwordHash: { type: String, default: null }, // for normal signup
+  passwordHash: { type: String, default: null },
   provider: { type: String, enum: ['local', 'google'], default: 'local' },
 
-  // GOOGLE PROFILE Picture
+  // PAYMENT FIELDS
+  isPaidUser: {
+    type: Boolean,
+    default: false,
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'paid', 'failed'],
+    default: 'pending',
+  },
+  lastPaymentDate: {
+    type: Date,
+  },
+  payments: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Payment',
+    },
+  ],
+
+  // GOOGLE PROFILE PICTURE
   picture: { type: String, default: null },
 
   // ROLE
-  role: { type: String, enum: ['user', 'admin'], default: 'user' },
+  role: {
+    type: String,
+    enum: ['user', 'admin', 'owner', 'developer'],
+    default: 'user',
+  },
 
-  // PROFILE SETUP FIELDS (NEW)
+  // PROFILE SETUP FIELDS
   fullName: { type: String, default: '' },
   phone: { type: String, default: '' },
   gender: { type: String, default: '' },
@@ -27,10 +51,22 @@ const UserSchema = new mongoose.Schema({
   profileCompleted: { type: Boolean, default: false },
 
   // PURCHASE HISTORY (used for access control)
-  orders: { type: Array, default: [] },
+  orders: {
+    type: [
+      {
+        orderId: String,
+        amount: Number,
+        currency: String,
+        status: String,
+        createdAt: Date,
+        paymentId: String,
+      },
+    ],
+    default: [],
+  },
   testimonials: { type: Array, default: [] },
 
-  // COURSE PROGRESS (NEW)
+  // COURSE PROGRESS
   coursesProgress: {
     type: [
       {
@@ -38,9 +74,9 @@ const UserSchema = new mongoose.Schema({
         topics: [
           {
             topicId: { type: mongoose.Schema.Types.ObjectId },
-            percent: { type: Number, default: 0 }, // 0–100
+            percent: { type: Number, default: 0 },
             lastSeenAt: { type: Date },
-            lastImageIndex: { type: Number, default: 0 }, // bookmark for page
+            lastImageIndex: { type: Number, default: 0 },
           },
         ],
         updatedAt: { type: Date, default: Date.now },
@@ -49,14 +85,14 @@ const UserSchema = new mongoose.Schema({
     default: [],
   },
 
-  // NOTES TAKEN BY USER (NEW)
+  // NOTES TAKEN BY USER
   notes: {
     type: [
       {
         courseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Courses' },
         topicId: { type: mongoose.Schema.Types.ObjectId },
-        imageIndex: { type: Number }, // page index
-        note: { type: String }, // text user saved
+        imageIndex: { type: Number },
+        note: { type: String },
         createdAt: { type: Date, default: Date.now },
         updatedAt: { type: Date, default: Date.now },
       },

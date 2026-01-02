@@ -1,48 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const Courses = require('../Model/course');
+const { authenticateToken, requirePaidUser } = require('../middleware/auth');
 
-// Get all courses
+// Public – list courses
 router.get('/', async (req, res) => {
-  try {
-    const courses = await Courses.find({});
-    res.status(200).json({
-      success: true,
-      count: courses.length,
-      data: courses,
-    });
-  } catch (error) {
-    console.error('Error fetching courses:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching courses',
-      error: error.message,
-    });
-  }
+  const courses = await Courses.find({});
+  res.json({ success: true, data: courses });
 });
 
-// Get course by ID
-router.get('/:id', async (req, res) => {
-  try {
-    const course = await Courses.findById(req.params.id);
-    if (!course) {
-      return res.status(404).json({
-        success: false,
-        message: 'Course not found',
-      });
-    }
-    res.status(200).json({
-      success: true,
-      data: course,
-    });
-  } catch (error) {
-    console.error('Error fetching course:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching course',
-      error: error.message,
-    });
+// Paid – single course
+router.get('/:id', authenticateToken, requirePaidUser, async (req, res) => {
+  const course = await Courses.findById(req.params.id);
+  if (!course) {
+    return res
+      .status(404)
+      .json({ success: false, message: 'Course not found' });
   }
+  res.json({ success: true, data: course });
 });
 
 module.exports = router;
