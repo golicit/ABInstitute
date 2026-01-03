@@ -1,6 +1,6 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
-const Payment = require('../Model/Payment');
+const Payment = require('../Model/Payment_r');
 const User = require('../Model/user');
 
 // Initialize Razorpay - CHECK YOUR KEYS!
