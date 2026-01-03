@@ -6,7 +6,7 @@ const Webinar = require('./Model/webinar'); // Add webinar model
 const OrderItem = require('./Model/orderItem'); // Add OrderItem model
 const Invoice = require('./Model/invoice'); // Add Invoice model
 const Coupon = require('./Model/coupon'); // Add Coupon model
-const payment = require('./Model/Payment_r'); // Add Payment model
+const payment = require('./Model/Payment'); // Add Payment model
 const Testimonial = require('./Model/testimonial'); // Add Testimonial model
 
 // Try to import Order model with robust error handling
