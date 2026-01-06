@@ -57,7 +57,7 @@ const PaymentHistory = () => {
       }
 
       const res = await axios.get<ApiResponse>(
-        'http://127.0.0.1:3000/api/payment/history',
+        'https://abinstitute.onrender.com/api/payment/history',
         {
           headers: { Authorization: `Bearer ${token}` },
         }

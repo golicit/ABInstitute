@@ -102,7 +102,7 @@ export default function Payment() {
       }
 
       const res = await axios.get<CheckPaymentResponse>(
-        'http://127.0.0.1:3000/api/payment/status',
+        'https://abinstitute.onrender.com/api/payment/status',
         {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 5000,
@@ -140,7 +140,7 @@ export default function Payment() {
       // Create order ONLY when payment is actually starting
       console.log('Creating order...');
       const orderRes = await axios.post<CreateOrderResponse>(
-        'http://127.0.0.1:3000/api/payment/create-order',
+        'https://abinstitute.onrender.com/api/payment/create-order',
         {},
         {
           headers: {
@@ -190,7 +190,7 @@ export default function Payment() {
           try {
             // Verify payment
             const verifyRes = await axios.post<VerifyPaymentResponse>(
-              'http://127.0.0.1:3000/api/payment/verify',
+              'https://abinstitute.onrender.com/api/payment/verify',
               {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
