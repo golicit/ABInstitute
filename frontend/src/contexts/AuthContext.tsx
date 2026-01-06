@@ -20,7 +20,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
-  updateUser: (updatedUser: Partial<User>) => void; // Added for profile updates
+  updateUser: (updatedUser: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,42 +32,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
-  // Function to load user from localStorage
-  const loadUserFromStorage = () => {
-    try {
-      const userStr = localStorage.getItem('user');
-      if (userStr) {
-        const parsedUser = JSON.parse(userStr);
-        setUser(parsedUser);
-        console.log('Loaded user from localStorage:', parsedUser.email);
-        return parsedUser;
-      }
-    } catch (error) {
-      console.error('Error loading user from localStorage:', error);
-    }
-    return null;
-  };
-
   useEffect(() => {
-    // Load user from localStorage immediately on mount
-    loadUserFromStorage();
-
     // Check for stored user data and verify token on app load
     const initializeAuth = async () => {
       try {
         setLoading(true);
+        setInitialized(false);
 
         const token = authAPI.getToken();
+        const userStr = localStorage.getItem('user');
 
-        // If no token, skip verification
-        if (!token) {
-          console.log('No token found, skipping verification');
+        // If we have user in localStorage but no token, or vice versa, clear both
+        if ((userStr && !token) || (!userStr && token)) {
+          console.log(
+            'Mismatch between localStorage user and token, clearing both'
+          );
+          authAPI.logout();
+          localStorage.removeItem('user');
+          setUser(null);
           setLoading(false);
           setInitialized(true);
           return;
         }
 
-        // Verify token if we have one
+        // If no token and no user, we're done
+        if (!token || !userStr) {
+          console.log('No token or user found');
+          setLoading(false);
+          setInitialized(true);
+          return;
+        }
+
         try {
           console.log('Verifying token...');
           const response = await authAPI.verifyToken();
@@ -108,10 +103,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
     // Add a safety timeout
     const timeoutId = setTimeout(() => {
-      console.log('Auth initialization timeout');
+      console.log('Auth initialization timeout - forcing completion');
       setLoading(false);
       setInitialized(true);
-    }, 10000);
+    }, 5000); // Reduced timeout to 5 seconds
 
     initializeAuth().then(() => {
       clearTimeout(timeoutId);
@@ -220,7 +215,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    token: tokenResponse.access_token, // ✅ IMPORTANT
+                    token: tokenResponse.access_token,
                   }),
                 }
               );
@@ -246,7 +241,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           },
         });
 
-        client.requestAccessToken(); // ✅ THIS IS REQUIRED
+        client.requestAccessToken();
       });
     } catch (error) {
       console.error('Google sign-in error:', error);
@@ -289,7 +284,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         signInWithGoogle,
         signOut,
         resetPassword,
-        updateUser, // Added
+        updateUser,
       }}
     >
       {children}
