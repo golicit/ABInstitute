@@ -1,3 +1,4 @@
+// contexts/AuthContext.tsx
 import React, {
   createContext,
   useContext,
@@ -21,6 +22,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
   updateUser: (updatedUser: Partial<User>) => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,37 +34,50 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
+  const refreshUser = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await authAPI.verifyToken();
+      if (response.success && response.data) {
+        setUser(response.data.user);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+      }
+    } catch (error) {
+      console.error('Error refreshing user:', error);
+    }
+  };
+
   useEffect(() => {
-    // Check for stored user data and verify token on app load
     const initializeAuth = async () => {
       try {
         setLoading(true);
         setInitialized(false);
 
-        const token = authAPI.getToken();
+        // Immediately try to load from localStorage
         const userStr = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
 
-        // If we have user in localStorage but no token, or vice versa, clear both
-        if ((userStr && !token) || (!userStr && token)) {
-          console.log(
-            'Mismatch between localStorage user and token, clearing both'
-          );
-          authAPI.logout();
-          localStorage.removeItem('user');
-          setUser(null);
+        if (userStr) {
+          try {
+            const parsedUser = JSON.parse(userStr);
+            setUser(parsedUser);
+            console.log('Preloaded user from localStorage:', parsedUser.email);
+          } catch (error) {
+            console.error('Error parsing stored user:', error);
+          }
+        }
+
+        // If no token, skip verification
+        if (!token) {
+          console.log('No token found, skipping verification');
           setLoading(false);
           setInitialized(true);
           return;
         }
 
-        // If no token and no user, we're done
-        if (!token || !userStr) {
-          console.log('No token or user found');
-          setLoading(false);
-          setInitialized(true);
-          return;
-        }
-
+        // Verify token if we have one
         try {
           console.log('Verifying token...');
           const response = await authAPI.verifyToken();
@@ -82,6 +97,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
             // Token invalid, clear storage
             authAPI.logout();
             localStorage.removeItem('user');
+            localStorage.removeItem('token');
+            localStorage.removeItem('is_paid');
             setUser(null);
           }
         } catch (error) {
@@ -89,6 +106,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           // If verification fails, clear storage
           authAPI.logout();
           localStorage.removeItem('user');
+          localStorage.removeItem('token');
+          localStorage.removeItem('is_paid');
           setUser(null);
         }
       } catch (error) {
@@ -101,20 +120,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       }
     };
 
-    // Add a safety timeout
-    const timeoutId = setTimeout(() => {
-      console.log('Auth initialization timeout - forcing completion');
-      setLoading(false);
-      setInitialized(true);
-    }, 5000); // Reduced timeout to 5 seconds
-
-    initializeAuth().then(() => {
-      clearTimeout(timeoutId);
-    });
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
+    // Initialize auth immediately
+    initializeAuth();
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -127,6 +134,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         setUser(response.data.user);
         // Store in localStorage
         localStorage.setItem('user', JSON.stringify(response.data.user));
+        localStorage.setItem('token', response.data.token || '');
         setLoading(false);
         return { error: null };
       }
@@ -153,6 +161,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       if (response.success && response.data) {
         setUser(response.data.user);
         localStorage.setItem('user', JSON.stringify(response.data.user));
+        localStorage.setItem('token', response.data.token || '');
         setLoading(false);
         return { error: null };
       }
@@ -174,6 +183,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       // Clear all user-related data from localStorage
       localStorage.removeItem('user');
       localStorage.removeItem('token');
+      localStorage.removeItem('is_paid');
       // Clear all avatar caches
       const allKeys = Object.keys(localStorage);
       allKeys.forEach((key) => {
@@ -285,6 +295,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         signOut,
         resetPassword,
         updateUser,
+        refreshUser,
       }}
     >
       {children}

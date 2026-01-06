@@ -1,3 +1,4 @@
+// pages/Payment.tsx
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 declare global {
   interface Window {
@@ -41,6 +43,7 @@ interface VerifyPaymentResponse {
 
 export default function Payment() {
   const navigate = useNavigate();
+  const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,10 +51,17 @@ export default function Payment() {
 
   // Load Razorpay script
   useEffect(() => {
-    // First check localStorage immediately
+    // First check if user is already paid
+    if (user?.isPaidUser) {
+      localStorage.setItem('is_paid', 'true');
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+
+    // Check localStorage
     const isPaid = localStorage.getItem('is_paid') === 'true';
     if (isPaid) {
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
       return;
     }
 
@@ -83,12 +93,11 @@ export default function Payment() {
     document.body.appendChild(script);
 
     return () => {
-      // Cleanup only if we're the one who added it
       if (script.parentNode && !window.Razorpay) {
         document.body.removeChild(script);
       }
     };
-  }, [navigate]);
+  }, [navigate, user]);
 
   const checkPaymentStatus = async () => {
     console.log('Checking payment status...');
@@ -114,6 +123,7 @@ export default function Payment() {
       if (res.data.success && res.data.isPaid) {
         console.log('Payment already completed, redirecting to dashboard');
         localStorage.setItem('is_paid', 'true');
+        await refreshUser(); // Refresh user data after payment
         navigate('/dashboard', { replace: true });
       } else {
         console.log('Payment not completed, showing payment page');
@@ -179,8 +189,8 @@ export default function Payment() {
         name: 'AB Institute',
         description: 'Course Enrollment Fee',
         prefill: {
-          name: localStorage.getItem('user_name') || '',
-          email: localStorage.getItem('user_email') || '',
+          name: user?.name || '',
+          email: user?.email || '',
         },
         theme: {
           color: '#2563eb',
@@ -211,10 +221,13 @@ export default function Payment() {
               // Update localStorage
               localStorage.setItem('is_paid', 'true');
 
+              // Refresh user data
+              await refreshUser();
+
               // Show success message briefly before redirect
               setError(null);
               setTimeout(() => {
-                window.location.href = '/dashboard';
+                navigate('/dashboard', { replace: true });
               }, 1000);
             } else {
               throw new Error(verifyRes.data.message || 'Verification failed');
@@ -233,7 +246,6 @@ export default function Payment() {
           ondismiss: () => {
             console.log('Payment modal dismissed by user');
             setProcessing(false);
-            // Order will automatically expire in Razorpay (typically 15-30 minutes)
           },
         },
       };
@@ -249,7 +261,6 @@ export default function Payment() {
           }. Please try again.`
         );
         setProcessing(false);
-        // The order will expire automatically in Razorpay
       });
 
       razorpay.open();
