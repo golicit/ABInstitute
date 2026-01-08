@@ -42,6 +42,7 @@ export interface AppUser {
   enrolledCourses: number;
   activeCourses: number;
   certificatesEarned: number;
+  batch?: string; // ✅ ADDED: Batch property for student batch information
 }
 
 interface AppContextType {
@@ -71,6 +72,7 @@ const initialUser: AppUser = {
   enrolledCourses: 1,
   activeCourses: 1,
   certificatesEarned: 0,
+  batch: '', // ✅ ADDED: Empty batch by default
 };
 
 // Your single real course
@@ -141,8 +143,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const userId = getUserId();
         const userName = authUser.name || 'User';
         const userEmail = authUser.email || '';
+        const userBatch = (authUser as any).batch || ''; // ✅ ADDED: Get batch from auth user
 
-        console.log('🔄 Syncing app user:', { userId, userName, userEmail });
+        console.log('🔄 Syncing app user:', {
+          userId,
+          userName,
+          userEmail,
+          userBatch,
+        });
 
         // Check if user has a Google profile picture
         const googlePicture = (authUser as any).picture;
@@ -183,6 +191,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           enrolledCourses: 1,
           activeCourses: 1,
           certificatesEarned: 0,
+          batch: userBatch, // ✅ ADDED: Include batch in app user
         };
 
         console.log('✅ Setting app user:', newAppUser);
@@ -296,6 +305,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // Also update auth user if it has an avatar field
         if (updateAuthUser && (authUser as any).avatar !== undefined) {
           updateAuthUser({ ...authUser, avatar: updatedUser.avatar } as any);
+        }
+      }
+
+      // ✅ If batch is being updated, also update auth user
+      if (updatedUser.batch && authUser) {
+        if (updateAuthUser) {
+          updateAuthUser({ ...authUser, batch: updatedUser.batch } as any);
         }
       }
 

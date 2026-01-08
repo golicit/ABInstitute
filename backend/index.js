@@ -66,8 +66,9 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/profile'));
 app.use('/api/courses', require('./routes/course'));
 app.use('/api/payment', require('./routes/payment'));
+app.use('/api/students', require('./routes/studentRoutes'));
 
-// Import models
+// Import Model
 const Users = require('./Model/user');
 const Courses = require('./Model/course');
 

@@ -1,11 +1,14 @@
 // src/pages/Dashboard.tsx
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { BookOpen, Award, TrendingUp, Clock } from 'lucide-react';
+import { BookOpen, Award, TrendingUp, Clock, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { apiClient } from '@/services/api';
+import { toast } from 'sonner';
 
 const DashboardSkeleton = () => {
   return (
@@ -107,12 +110,122 @@ const ProgressRing = ({
   );
 };
 
+// Batch Info Component
+const BatchInfoCard = ({ batchName }: { batchName: string }) => {
+  const [batchDetails, setBatchDetails] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (batchName) {
+      fetchBatchDetails();
+    }
+  }, [batchName]);
+
+  const fetchBatchDetails = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get(`/api/students/my-batch`);
+      if (response.data) {
+        setBatchDetails(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching batch details:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Extract batch details from name
+  const getBatchInfo = (batchName: string) => {
+    if (!batchName) return { series: '', suffix: '', year: '' };
+
+    // Example: ABINS20262001A
+    const match = batchName.match(/ABINS(\d{4})(\d{4})([A-Z])/);
+    if (match) {
+      return {
+        year: match[1],
+        series: match[2],
+        suffix: match[3],
+      };
+    }
+    return { series: '', suffix: '', year: '' };
+  };
+
+  const batchInfo = getBatchInfo(batchName);
+
+  return (
+    <Card className='bg-gradient-to-br from-blue-900/30 to-purple-900/30 border border-blue-500/20'>
+      <CardHeader className='pb-3'>
+        <CardTitle className='text-white flex items-center gap-2'>
+          <Users className='h-5 w-5' />
+          Your Batch
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className='flex flex-col items-center justify-center p-4'>
+          {/* Batch Badge */}
+          <div className='mb-4'>
+            <div className='inline-block bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-full text-xl font-bold shadow-lg'>
+              {batchName}
+            </div>
+          </div>
+
+          {/* Batch Details */}
+          <div className='grid grid-cols-3 gap-4 w-full max-w-md'>
+            <div className='text-center p-3 bg-white/10 rounded-lg'>
+              <p className='text-sm text-white/70'>Series</p>
+              <p className='text-xl font-bold text-white'>{batchInfo.series}</p>
+            </div>
+            <div className='text-center p-3 bg-white/10 rounded-lg'>
+              <p className='text-sm text-white/70'>Suffix</p>
+              <p className='text-xl font-bold text-white'>{batchInfo.suffix}</p>
+            </div>
+            <div className='text-center p-3 bg-white/10 rounded-lg'>
+              <p className='text-sm text-white/70'>Year</p>
+              <p className='text-xl font-bold text-white'>{batchInfo.year}</p>
+            </div>
+          </div>
+
+          {/* Additional Info */}
+          {batchDetails && (
+            <div className='mt-4 text-center'>
+              <p className='text-white/80'>
+                Students in batch:{' '}
+                <span className='font-bold'>
+                  {batchDetails.studentCount || 0}/25
+                </span>
+              </p>
+              <p className='text-sm text-white/60 mt-2'>
+                Each batch has maximum 25 students for optimal learning
+              </p>
+            </div>
+          )}
+
+          {/* View Batch Details Button */}
+          <Button
+            variant='outline'
+            className='mt-6 border-white/30 text-white hover:bg-white/10'
+            onClick={fetchBatchDetails}
+            disabled={loading}
+          >
+            {loading ? 'Loading...' : 'View Batch Details'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 // ======================
 // 🔵 Dashboard Page
 // ======================
 const Dashboard = () => {
   const { user, courses, updateUser } = useApp();
+  const { user: authUser } = useAuth(); // Get auth user for batch info
   const navigate = useNavigate();
+
+  // Get batch from auth user (this should come from backend)
+  const studentBatch = (authUser as any)?.batch || user.batch;
 
   // ======================
   // 1️⃣ Real-time course lists
@@ -140,7 +253,7 @@ const Dashboard = () => {
   const hoursLearned = ((getTotalPagesViewed() * 1.5) / 60).toFixed(1);
 
   // ======================
-  // 3️⃣ Stats (dynamic)
+  // 3️⃣ Stats (dynamic) - Updated to include batch
   // ======================
   const stats = [
     {
@@ -213,14 +326,27 @@ const Dashboard = () => {
   // ======================
   return (
     <div className='space-y-8'>
-      {/* HERO */}
+      {/* HERO with Batch Info */}
       <div className='rounded-xl bg-gradient-primary/80 p-8 text-white shadow-lg'>
-        <h1 className='text-3xl font-bold mb-2'>
-          Welcome back, {user.name.split(' ')[0]} 👋
-        </h1>
-        <p className='text-white/70'>
-          Continue your progress — your courses, achievements and certificates.
-        </p>
+        <div className='flex flex-col md:flex-row justify-between items-start md:items-center'>
+          <div>
+            <h1 className='text-3xl font-bold mb-2'>
+              Welcome back, {user.name.split(' ')[0]} 👋
+            </h1>
+            <p className='text-white/70'>
+              Continue your progress — your courses, achievements and
+              certificates.
+            </p>
+          </div>
+
+          {/* Batch Badge in Header */}
+          {studentBatch && (
+            <div className='mt-4 md:mt-0 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full border border-white/30'>
+              <span className='text-sm text-white/70 mr-2'>Batch:</span>
+              <span className='font-bold text-white'>{studentBatch}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* DASHBOARD BANNER IMAGE */}
@@ -246,26 +372,61 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* STATS GRID */}
-      <div className='grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'>
-        {stats.map((s) => (
-          <Card
-            key={s.title}
-            className='bg-card border border-border shadow-md rounded-xl shadow'
-          >
-            <CardContent className='flex items-center gap-4 p-6'>
-              <div className='rounded-lg p-3 bg-gradient-to-br from-[#F6A32F]/20 to-[#F67315]/10'>
-                <s.icon className='h-6 w-6 text-white' />
-              </div>
+      {/* BATCH INFORMATION CARD - NEW SECTION */}
+      {studentBatch && (
+        <div className='grid grid-cols-1 lg:grid-cols-3 gap-8'>
+          {/* Batch Card - Takes 1/3 on large screens */}
+          <div className='lg:col-span-1'>
+            <BatchInfoCard batchName={studentBatch} />
+          </div>
 
-              <div>
-                <p className='text-sm text-white/70'>{s.title}</p>
-                <p className='text-2xl font-bold text-white'>{s.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+          {/* Stats Grid - Takes 2/3 on large screens */}
+          <div className='lg:col-span-2'>
+            <div className='grid gap-6 grid-cols-1 sm:grid-cols-2'>
+              {stats.map((s) => (
+                <Card
+                  key={s.title}
+                  className='bg-card border border-border shadow-md rounded-xl shadow'
+                >
+                  <CardContent className='flex items-center gap-4 p-6'>
+                    <div className='rounded-lg p-3 bg-gradient-to-br from-[#F6A32F]/20 to-[#F67315]/10'>
+                      <s.icon className='h-6 w-6 text-white' />
+                    </div>
+
+                    <div>
+                      <p className='text-sm text-white/70'>{s.title}</p>
+                      <p className='text-2xl font-bold text-white'>{s.value}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* If no batch, show regular stats grid */}
+      {!studentBatch && (
+        <div className='grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'>
+          {stats.map((s) => (
+            <Card
+              key={s.title}
+              className='bg-card border border-border shadow-md rounded-xl shadow'
+            >
+              <CardContent className='flex items-center gap-4 p-6'>
+                <div className='rounded-lg p-3 bg-gradient-to-br from-[#F6A32F]/20 to-[#F67315]/10'>
+                  <s.icon className='h-6 w-6 text-white' />
+                </div>
+
+                <div>
+                  <p className='text-sm text-white/70'>{s.title}</p>
+                  <p className='text-2xl font-bold text-white'>{s.value}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* CONTINUE LEARNING */}
       <h2 className='text-2xl font-bold text-white'>Continue Learning</h2>

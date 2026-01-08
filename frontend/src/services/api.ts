@@ -67,6 +67,7 @@ interface User {
   profileImage?: string;
   provider?: 'local' | 'google';
   picture?: string;
+  batch?: string;
   
   // Orders
   orders?: Array<{

@@ -1,4 +1,6 @@
-import { Search, Bell, Menu } from 'lucide-react';
+// Update Header.tsx - Add batch indicator
+
+import { Search, Bell, Menu, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -20,8 +22,12 @@ interface HeaderProps {
 
 const Header = ({ onMenuClick }: HeaderProps) => {
   const { user } = useApp();
+  const { user: authUser } = useAuth(); // Get auth user
   const { signOut } = useAuth();
   const navigate = useNavigate();
+
+  // Get batch from auth user
+  const studentBatch = (authUser as any)?.batch;
 
   const handleLogout = async () => {
     await signOut();
@@ -50,6 +56,16 @@ const Header = ({ onMenuClick }: HeaderProps) => {
             AB Institute
           </span>
         </div>
+
+        {/* Batch Indicator in Header */}
+        {studentBatch && (
+          <div className='hidden md:flex items-center gap-2 ml-4 px-3 py-1 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-500/20 rounded-full'>
+            <Users className='h-4 w-4 text-blue-300' />
+            <span className='text-sm font-medium text-white'>
+              Batch: <span className='font-bold'>{studentBatch}</span>
+            </span>
+          </div>
+        )}
 
         <div className='ml-auto flex items-center gap-4'>
           <div className='relative w-full max-w-md hidden md:block'>
@@ -80,10 +96,22 @@ const Header = ({ onMenuClick }: HeaderProps) => {
               <DropdownMenuLabel>
                 <p className='text-sm font-medium'>{user.name}</p>
                 <p className='text-xs text-muted-foreground'>{user.email}</p>
+                {studentBatch && (
+                  <div className='mt-1 flex items-center gap-1 text-xs'>
+                    <Users className='h-3 w-3' />
+                    <span className='text-muted-foreground'>Batch: </span>
+                    <span className='font-semibold'>{studentBatch}</span>
+                  </div>
+                )}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate('/dashboard/profile')}>
                 Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => navigate('/dashboard/batch-info')}
+              >
+                Batch Information
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

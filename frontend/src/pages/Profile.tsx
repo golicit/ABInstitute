@@ -1,3 +1,5 @@
+// Update Profile.tsx - Add batch section
+
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
@@ -16,16 +18,20 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Users, Copy, Check } from 'lucide-react'; // Add icons
 
 const Profile = () => {
   const { user, updateUser, refreshUserAvatar } = useApp();
-  const { user: authUser } = useAuth(); // Get auth user for user ID
+  const { user: authUser, refreshUser } = useAuth(); // Get auth user for user ID
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [batchDetails, setBatchDetails] = useState<any>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
   // Get user ID from authUser
@@ -34,6 +40,9 @@ const Profile = () => {
     const userId = (authUser as any)._id || (authUser as any).id;
     return userId ? userId.toString() : 'unknown';
   };
+
+  // Get batch from auth user
+  const studentBatch = (authUser as any)?.batch || user.batch;
 
   // Load saved picture from localStorage using the correct key
   useEffect(() => {
@@ -56,6 +65,37 @@ const Profile = () => {
       }
     }
   }, [authUser]); // Add authUser as dependency
+
+  // Fetch batch details
+  useEffect(() => {
+    if (studentBatch) {
+      fetchBatchDetails();
+    }
+  }, [studentBatch]);
+
+  const fetchBatchDetails = async () => {
+    try {
+      setBatchLoading(true);
+      const response = await apiClient.get(`/api/students/my-batch`);
+      if (response.data) {
+        setBatchDetails(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching batch details:', error);
+      toast.error('Failed to load batch details');
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  const copyBatchName = () => {
+    if (studentBatch) {
+      navigator.clipboard.writeText(studentBatch);
+      setCopied(true);
+      toast.success('Batch name copied to clipboard!');
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   // Handle image upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -281,6 +321,76 @@ const Profile = () => {
               <p className='text-sm text-muted-foreground'>Phone Number</p>
               <p className='text-lg font-semibold'>{user.phone}</p>
             </div>
+
+            {/* BATCH INFORMATION - NEW SECTION */}
+            {studentBatch && (
+              <div className='space-y-2 pt-4 border-t border-border'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <Users className='h-5 w-5 text-muted-foreground' />
+                    <p className='text-sm text-muted-foreground'>Batch</p>
+                  </div>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    onClick={copyBatchName}
+                    className='h-8'
+                  >
+                    {copied ? (
+                      <Check className='h-4 w-4 text-green-500' />
+                    ) : (
+                      <Copy className='h-4 w-4' />
+                    )}
+                  </Button>
+                </div>
+                <div className='flex items-center gap-3'>
+                  <div className='bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg font-bold text-lg'>
+                    {studentBatch}
+                  </div>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={fetchBatchDetails}
+                    disabled={batchLoading}
+                  >
+                    {batchLoading ? 'Loading...' : 'Details'}
+                  </Button>
+                </div>
+
+                {/* Batch Details Popup */}
+                {batchDetails && (
+                  <div className='mt-3 p-3 bg-white/5 rounded-lg border border-white/10'>
+                    <p className='text-sm text-muted-foreground'>
+                      Batch Details:
+                    </p>
+                    <div className='grid grid-cols-2 gap-2 mt-2'>
+                      <div>
+                        <p className='text-xs text-muted-foreground'>Year</p>
+                        <p className='font-semibold'>{batchDetails.year}</p>
+                      </div>
+                      <div>
+                        <p className='text-xs text-muted-foreground'>Series</p>
+                        <p className='font-semibold'>
+                          {batchDetails.seriesNumber}
+                        </p>
+                      </div>
+                      <div>
+                        <p className='text-xs text-muted-foreground'>Suffix</p>
+                        <p className='font-semibold'>{batchDetails.suffix}</p>
+                      </div>
+                      <div>
+                        <p className='text-xs text-muted-foreground'>
+                          Students
+                        </p>
+                        <p className='font-semibold'>
+                          {batchDetails.studentCount || 0}/25
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -29,6 +29,12 @@ const UserSchema = new mongoose.Schema({
     },
   ],
 
+  //Batch
+  batch: {
+    type: String,
+    default: null,
+  },
+
   // GOOGLE PROFILE PICTURE
   picture: { type: String, default: null },
 
