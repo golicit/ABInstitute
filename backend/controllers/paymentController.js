@@ -76,7 +76,7 @@ exports.createOrder = async (req, res) => {
     }
 
     const userId = req.user._id;
-    const amount = 100; // ₹1 in paise
+    const amount = 149900; // ₹1 in paise
 
     console.log('User ID:', userId);
     console.log('Amount:', amount);
@@ -363,7 +363,7 @@ exports.createTutoringOrder = async (req, res) => {
     }
 
     const userId = req.user._id;
-    const amount = 100; // ₹1 in paise for demo
+    const amount = 29900; // ₹1 in paise for demo
 
     console.log('Tutoring Order - User ID:', userId);
     console.log('Tutoring Order - Amount:', amount);
