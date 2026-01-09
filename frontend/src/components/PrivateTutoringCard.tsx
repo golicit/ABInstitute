@@ -597,8 +597,8 @@ export default function PrivateTutoringCard() {
               </div>
             </div>
             <div className='text-right'>
-              <div className='text-2xl font-bold text-white'>₹1</div>
-              <div className='text-xs text-gray-400 line-through'>₹999</div>
+              <div className='text-2xl font-bold text-white'>₹299</div>
+              <div className='text-xs text-gray-400 line-through'>₹499</div>
             </div>
           </div>
 

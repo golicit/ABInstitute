@@ -415,7 +415,7 @@ export default function Payment() {
           <div className='space-y-4'>
             <div className='flex justify-between items-center p-4 bg-muted/50 rounded-lg'>
               <span className='font-medium'>Course Access Fee</span>
-              <span className='text-2xl font-bold'>₹1</span>
+              <span className='text-2xl font-bold'>₹1499</span>
             </div>
 
             <ul className='space-y-2 text-sm text-muted-foreground'>
