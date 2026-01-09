@@ -1,7 +1,7 @@
 // src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Suspense } from 'react';
+import { Suspense, lazy } from 'react';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AppProvider } from './contexts/AppContext';
@@ -21,6 +21,9 @@ import CourseReader from './pages/CourseReader';
 import CourseDetail from './pages/CourseDetail';
 import EmailVerification from './pages/EmailVerification';
 import Payment from './pages/Payment';
+
+// Lazy load TutoringSessions
+const TutoringSessions = lazy(() => import('./pages/TutoringSessions'));
 
 const queryClient = new QueryClient();
 
@@ -78,7 +81,34 @@ const PaymentGuard = ({ children }: { children: JSX.Element }) => {
     return children;
   }
 
-  // Check payment status
+  // Check payment status for MAIN COURSE (tutoring is separate)
+  if (!isPaid && !user.isPaidUser) {
+    return <Navigate to='/payment' replace />;
+  }
+
+  return children;
+};
+
+/* ---------------- TUTORING GUARD ---------------- */
+const TutoringGuard = ({ children }: { children: JSX.Element }) => {
+  const { user, loading, initialized } = useAuth();
+
+  // Show loading while auth is initializing
+  if (loading || !initialized) {
+    return <LoadingSpinner />;
+  }
+
+  if (!user) {
+    return <Navigate to='/auth' replace />;
+  }
+
+  // Role-based bypass
+  if (['admin', 'owner', 'developer'].includes(user.role)) {
+    return children;
+  }
+
+  // Check if user has purchased main course first
+  const isPaid = localStorage.getItem('is_paid') === 'true';
   if (!isPaid && !user.isPaidUser) {
     return <Navigate to='/payment' replace />;
   }
@@ -111,7 +141,7 @@ const App = () => {
                   }
                 />
 
-                {/* Dashboard (PAYMENT PROTECTED) */}
+                {/* Dashboard (PAYMENT PROTECTED - MAIN COURSE REQUIRED) */}
                 <Route
                   path='/dashboard'
                   element={
@@ -136,6 +166,16 @@ const App = () => {
                     element={<CourseDetail />}
                   />
                   <Route path='course/:courseId' element={<CourseReader />} />
+                  <Route
+                    path='tutoring-sessions'
+                    element={
+                      <TutoringGuard>
+                        <Suspense fallback={<LoadingSpinner />}>
+                          <TutoringSessions />
+                        </Suspense>
+                      </TutoringGuard>
+                    }
+                  />
                 </Route>
 
                 {/* 404 */}

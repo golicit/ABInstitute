@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { tutoringAPI } from '@/services/api';
 
 export interface Course {
   id: string;
@@ -56,6 +57,16 @@ interface AppContextType {
   refreshCourses: () => Promise<void>;
   refreshDashboard: () => Promise<void>;
   refreshUserAvatar: () => void; // Added for manual avatar refresh
+  // Tutoring state
+  tutoring: {
+    status: 'none' | 'pending' | 'active' | 'completed';
+    purchasedAt: Date | null;
+    mentorAvailable: boolean;
+  };
+  updateTutoringStatus: (
+    status: 'none' | 'pending' | 'active' | 'completed'
+  ) => void;
+  refreshTutoringStatus: () => Promise<void>;
 }
 
 const LOCAL_PROGRESS_KEY = 'course_progress';
@@ -255,6 +266,39 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem(LOCAL_PROGRESS_KEY, JSON.stringify(saved));
   };
 
+  const [tutoring, setTutoring] = useState<{
+    status: 'none' | 'pending' | 'active' | 'completed';
+    purchasedAt: Date | null;
+    mentorAvailable: boolean;
+  }>({
+    status: 'none',
+    purchasedAt: null,
+    mentorAvailable: false,
+  });
+
+  const refreshTutoringStatus = async () => {
+    try {
+      const response = await tutoringAPI.getTutoringStatus();
+      if (response.success && response.data) {
+        setTutoring({
+          status: response.data.tutoringStatus,
+          purchasedAt: response.data.tutoringPurchasedAt
+            ? new Date(response.data.tutoringPurchasedAt)
+            : null,
+          mentorAvailable: response.data.tutoringStatus === 'active',
+        });
+      }
+    } catch (error) {
+      console.error('Error refreshing tutoring status:', error);
+    }
+  };
+
+  const updateTutoringStatus = (
+    status: 'none' | 'pending' | 'active' | 'completed'
+  ) => {
+    setTutoring((prev) => ({ ...prev, status }));
+  };
+
   const refreshUserAvatar = () => {
     if (authUser) {
       const userId = getUserId();
@@ -332,6 +376,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         refreshCourses,
         refreshDashboard,
         refreshUserAvatar,
+        tutoring,
+        updateTutoringStatus,
+        refreshTutoringStatus,
       }}
     >
       {children}

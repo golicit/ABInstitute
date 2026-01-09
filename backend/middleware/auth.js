@@ -31,13 +31,24 @@ const authenticateToken = async (req, res, next) => {
 
     console.log('Token found, verifying...');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('decoooo', decoded);
-    console.log('Token verified. User ID:', decoded.id);
-    // Get user from database to ensure they still exist
-    const user = await Users.findById(decoded.id).select('-passwordHash');
+    console.log('Token decoded:', decoded);
+
+    // FIX: Handle both userId and id from token
+    const userId = decoded.userId || decoded.id;
+    console.log('User ID from token:', userId);
+
+    if (!userId) {
+      console.log('No user ID found in token');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token: No user ID',
+      });
+    }
+
+    const user = await Users.findById(userId).select('-passwordHash');
 
     if (!user) {
-      console.log('User not found in database for userId:', decoded.id);
+      console.log('User not found in database for userId:', userId);
       return res.status(401).json({
         success: false,
         message: 'User not found',
@@ -78,7 +89,8 @@ const optionalAuth = async (req, res, next) => {
 
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await Users.findById(decoded.userId).select('-passwordHash');
+      const userId = decoded.userId || decoded.id;
+      const user = await Users.findById(userId).select('-passwordHash');
       if (user) {
         req.user = user;
       }
@@ -90,6 +102,7 @@ const optionalAuth = async (req, res, next) => {
     next();
   }
 };
+
 const requirePaidUser = async (req, res, next) => {
   const user = await Users.findById(req.user._id);
 

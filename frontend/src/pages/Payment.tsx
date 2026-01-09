@@ -1,4 +1,3 @@
-// pages/Payment.tsx
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +10,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 
 declare global {
   interface Window {
@@ -41,27 +39,33 @@ interface VerifyPaymentResponse {
   isPaidUser?: boolean;
 }
 
+// Get API URL from environment or use default
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+
 export default function Payment() {
   const navigate = useNavigate();
-  const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const razorpayLoaded = useRef(false);
 
+  // Clear auth data and redirect to login
+  const clearAuthAndRedirect = () => {
+    console.log('Clearing auth data and redirecting to login...');
+    localStorage.removeItem('token');
+    localStorage.removeItem('is_paid');
+    localStorage.removeItem('user_name');
+    localStorage.removeItem('user_email');
+    localStorage.removeItem('user_id');
+    navigate('/auth');
+  };
+
   // Load Razorpay script
   useEffect(() => {
-    // First check if user is already paid
-    if (user?.isPaidUser) {
-      localStorage.setItem('is_paid', 'true');
-      navigate('/dashboard', { replace: true });
-      return;
-    }
-
-    // Check localStorage
+    // First check localStorage immediately
     const isPaid = localStorage.getItem('is_paid') === 'true';
     if (isPaid) {
-      navigate('/dashboard', { replace: true });
+      navigate('/dashboard');
       return;
     }
 
@@ -93,28 +97,38 @@ export default function Payment() {
     document.body.appendChild(script);
 
     return () => {
+      // Cleanup only if we're the one who added it
       if (script.parentNode && !window.Razorpay) {
         document.body.removeChild(script);
       }
     };
-  }, [navigate, user]);
+  }, [navigate]);
 
   const checkPaymentStatus = async () => {
     console.log('Checking payment status...');
+    console.log('API URL:', API_URL);
 
     try {
       const token = localStorage.getItem('token');
+      console.log('Token from localStorage:', token ? 'Present' : 'MISSING');
+
       if (!token) {
         console.log('No token found, redirecting to auth');
-        navigate('/auth');
+        clearAuthAndRedirect();
         return;
       }
 
+      // DEBUG: Log the token (first 20 chars)
+      console.log('Token (first 20 chars):', token.substring(0, 20) + '...');
+
       const res = await axios.get<CheckPaymentResponse>(
-        'https://abinstitute.onrender.com/api/payment/status',
+        `${API_URL}/api/payment/status`,
         {
-          headers: { Authorization: `Bearer ${token}` },
-          timeout: 5000,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'X-Debug': 'true',
+          },
+          timeout: 10000,
         }
       );
 
@@ -123,7 +137,6 @@ export default function Payment() {
       if (res.data.success && res.data.isPaid) {
         console.log('Payment already completed, redirecting to dashboard');
         localStorage.setItem('is_paid', 'true');
-        await refreshUser(); // Refresh user data after payment
         navigate('/dashboard', { replace: true });
       } else {
         console.log('Payment not completed, showing payment page');
@@ -131,33 +144,65 @@ export default function Payment() {
       }
     } catch (err: any) {
       console.error('Payment status check failed:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+      });
+
+      // Handle 401 Unauthorized
+      if (err.response?.status === 401) {
+        console.error('Token is invalid or expired!');
+        setError('Your session has expired. Please log in again.');
+
+        // Clear invalid token and redirect after 2 seconds
+        setTimeout(() => {
+          clearAuthAndRedirect();
+        }, 2000);
+      }
+      // Handle network errors
+      else if (err.code === 'ERR_NETWORK') {
+        setError(
+          `Cannot connect to server at ${API_URL}. Please check if the server is running.`
+        );
+      }
+      // Handle other errors
+      else {
+        setError(
+          err.response?.data?.message ||
+            'Unable to check payment status. Please try again.'
+        );
+      }
+
       setLoading(false);
     }
   };
 
   const startPayment = async () => {
     console.log('Starting payment process...');
+    console.log('API URL:', API_URL);
     setProcessing(true);
     setError(null);
 
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        navigate('/auth');
+        clearAuthAndRedirect();
         return;
       }
 
-      // Create order ONLY when payment is actually starting
+      // Create order
       console.log('Creating order...');
       const orderRes = await axios.post<CreateOrderResponse>(
-        'https://abinstitute.onrender.com/api/payment/create-order',
-        {},
+        `${API_URL}/api/payment/create-order`,
+        {}, // Empty body since amount is fixed
         {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          timeout: 10000,
+          timeout: 15000,
         }
       );
 
@@ -189,8 +234,8 @@ export default function Payment() {
         name: 'AB Institute',
         description: 'Course Enrollment Fee',
         prefill: {
-          name: user?.name || '',
-          email: user?.email || '',
+          name: localStorage.getItem('user_name') || '',
+          email: localStorage.getItem('user_email') || '',
         },
         theme: {
           color: '#2563eb',
@@ -200,7 +245,7 @@ export default function Payment() {
           try {
             // Verify payment
             const verifyRes = await axios.post<VerifyPaymentResponse>(
-              'https://abinstitute.onrender.com/api/payment/verify',
+              `${API_URL}/api/payment/verify`,
               {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
@@ -211,7 +256,7 @@ export default function Payment() {
                   Authorization: `Bearer ${token}`,
                   'Content-Type': 'application/json',
                 },
-                timeout: 10000,
+                timeout: 15000,
               }
             );
 
@@ -221,13 +266,10 @@ export default function Payment() {
               // Update localStorage
               localStorage.setItem('is_paid', 'true');
 
-              // Refresh user data
-              await refreshUser();
-
               // Show success message briefly before redirect
               setError(null);
               setTimeout(() => {
-                navigate('/dashboard', { replace: true });
+                window.location.href = '/dashboard';
               }, 1000);
             } else {
               throw new Error(verifyRes.data.message || 'Verification failed');
@@ -266,15 +308,27 @@ export default function Payment() {
       razorpay.open();
     } catch (err: any) {
       console.error('Payment initialization error:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        url: `${API_URL}/api/payment/create-order`,
+      });
 
-      if (err.response?.status === 500) {
-        setError('Payment system error. Please try again in a few moments.');
-      } else if (err.response?.status === 401) {
+      if (err.response?.status === 401) {
         setError('Your session has expired. Please log in again.');
-        setTimeout(() => navigate('/auth'), 2000);
+        setTimeout(() => clearAuthAndRedirect(), 2000);
+      } else if (err.response?.status === 500) {
+        setError(
+          'Server error. Please check if your backend is properly configured with Razorpay keys.'
+        );
       } else if (err.code === 'ERR_NETWORK') {
         setError(
-          'Network error. Please check your internet connection and try again.'
+          `Cannot connect to server at ${API_URL}. Please check your internet connection.`
+        );
+      } else if (err.code === 'ECONNABORTED') {
+        setError(
+          'Request timeout. The server might be busy. Please try again.'
         );
       } else {
         setError(
@@ -312,6 +366,12 @@ export default function Payment() {
           <p className='text-xs text-muted-foreground mt-2'>
             If this takes too long, please refresh the page
           </p>
+          <div className='mt-4 text-xs text-muted-foreground'>
+            <p>API Endpoint: {API_URL}</p>
+            <p>
+              Token: {localStorage.getItem('token') ? 'Present' : 'Missing'}
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -336,13 +396,18 @@ export default function Payment() {
               <div className='flex-1'>
                 <p className='font-medium mb-1'>Payment Error</p>
                 <p>{error}</p>
-                <Button
-                  variant='link'
-                  className='p-0 h-auto text-destructive'
-                  onClick={() => setError(null)}
-                >
-                  Dismiss
-                </Button>
+                <div className='mt-2 space-y-1'>
+                  <p className='text-xs text-muted-foreground'>
+                    Server: {API_URL}
+                  </p>
+                  <Button
+                    variant='link'
+                    className='p-0 h-auto text-destructive'
+                    onClick={() => setError(null)}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -392,15 +457,24 @@ export default function Payment() {
           <div className='text-xs text-center text-muted-foreground space-y-1'>
             <p>Secure payment powered by Razorpay.</p>
             <p>You'll be redirected to a secure payment page.</p>
-            <p className='text-muted-foreground/70 mt-2'>
-              Note: If you exit without completing payment, you can return and
-              pay anytime.
-            </p>
             {import.meta.env.DEV && (
               <p className='text-amber-600 mt-2'>
                 Development Mode: Using test credentials
               </p>
             )}
+            <p className='text-xs text-muted-foreground/70 mt-2'>
+              API: {API_URL}
+            </p>
+            <Button
+              variant='link'
+              className='p-0 h-auto text-xs text-muted-foreground'
+              onClick={() => {
+                localStorage.clear();
+                navigate('/auth');
+              }}
+            >
+              Clear Data & Login Again
+            </Button>
           </div>
         </CardContent>
       </Card>

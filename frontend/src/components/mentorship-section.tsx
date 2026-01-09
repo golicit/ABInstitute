@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Video, Zap, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import PrivateTutoringCard from './PrivateTutoringCard';
 
 export function MentorshipSection() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -53,6 +53,7 @@ export function MentorshipSection() {
           </p>
         </div>
       </div>
+
       {/* Mentor Banner */}
       <div className='relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#111827] to-[#0a0e14] border border-border/40 p-8 flex flex-col md:flex-row gap-12'>
         {/* Text Section */}
@@ -111,6 +112,17 @@ export function MentorshipSection() {
 
         {/* Decorative glow */}
         <div className='absolute -right-20 -top-20 w-64 h-64 bg-[#14b8a6]/5 blur-3xl rounded-full pointer-events-none' />
+      </div>
+
+      {/* Private Tutoring Section */}
+      <div>
+        <div className='mb-4'>
+          <h2 className='text-2xl font-bold text-white'>Private Tutoring</h2>
+          <p className='text-muted-foreground'>
+            Get personalized 1-on-1 mentorship sessions
+          </p>
+        </div>
+        <PrivateTutoringCard />
       </div>
 
       {/* Class Structure Sections */}

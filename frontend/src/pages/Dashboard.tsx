@@ -9,6 +9,7 @@ import { BookOpen, Award, TrendingUp, Clock, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/services/api';
 import { toast } from 'sonner';
+import PrivateTutoringCard from '@/components/PrivateTutoringCard';
 
 const DashboardSkeleton = () => {
   return (
@@ -491,6 +492,17 @@ const Dashboard = () => {
             </div>
           </Card>
         ))}
+      </div>
+
+      {/* Private Tutoring Section */}
+      <div>
+        <div className='mb-4'>
+          <h2 className='text-2xl font-bold text-white'>Private Tutoring</h2>
+          <p className='text-muted-foreground'>
+            Get personalized 1-on-1 mentorship sessions
+          </p>
+        </div>
+        <PrivateTutoringCard />
       </div>
 
       {/* CERTIFICATES */}

@@ -15,8 +15,8 @@ const allowedOrigins = [
   'https://abdash.netlify.app',
   'http://localhost:8080',
   'http://localhost:5173',
-  'VITE_API_BASE_URL',
-];
+  process.env.FRONTEND_URL,
+].filter(Boolean);
 
 app.use(
   cors({

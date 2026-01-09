@@ -9,7 +9,7 @@ const UserSchema = new mongoose.Schema({
   passwordHash: { type: String, default: null },
   provider: { type: String, enum: ['local', 'google'], default: 'local' },
 
-  // PAYMENT FIELDS
+  // PAYMENT FIELDS - IMPORTANT: These must exist!
   isPaidUser: {
     type: Boolean,
     default: false,
@@ -44,6 +44,27 @@ const UserSchema = new mongoose.Schema({
     enum: ['user', 'admin', 'owner', 'developer'],
     default: 'user',
   },
+
+  // Add these to your User schema
+  tutoringStatus: {
+    type: String,
+    enum: ['none', 'pending', 'active', 'completed'],
+    default: 'none',
+  },
+  tutoringPurchasedAt: {
+    type: Date,
+  },
+  mentorAvailabilityNotified: {
+    type: Boolean,
+    default: false,
+  },
+  // Add to your existing orders array if you have one
+  tutoringOrders: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Payment',
+    },
+  ],
 
   // PROFILE SETUP FIELDS
   fullName: { type: String, default: '' },

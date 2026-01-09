@@ -7,6 +7,7 @@ import {
   LogOut,
   Presentation,
   X,
+  Video,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { Button } from '@/components/ui/button';
@@ -22,11 +23,16 @@ interface SidebarProps {
 const menuItems = [
   { icon: Home, label: 'Dashboard', path: '/dashboard' },
   { icon: BookOpen, label: 'My Courses', path: '/dashboard/my-courses' },
+  {
+    icon: Video,
+    label: 'Private Mentorship',
+    path: '/dashboard/tutoring-sessions',
+  },
   { icon: ShoppingCart, label: 'Explore Courses', path: '/dashboard/explore' },
 
   {
     icon: Presentation,
-    label: 'Webinar schedule & Zoom link',
+    label: 'Webinar schedule & Zoho link',
     path: '/dashboard/payments',
   },
   { icon: CreditCard, label: 'Payment History', path: '/dashboard/payments' },
