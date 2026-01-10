@@ -457,14 +457,6 @@ export default function Payment() {
           <div className='text-xs text-center text-muted-foreground space-y-1'>
             <p>Secure payment powered by Razorpay.</p>
             <p>You'll be redirected to a secure payment page.</p>
-            {import.meta.env.DEV && (
-              <p className='text-amber-600 mt-2'>
-                Development Mode: Using test credentials
-              </p>
-            )}
-            <p className='text-xs text-muted-foreground/70 mt-2'>
-              API: {API_URL}
-            </p>
             <Button
               variant='link'
               className='p-0 h-auto text-xs text-muted-foreground'
