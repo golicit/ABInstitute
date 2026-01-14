@@ -3,13 +3,31 @@ const bcrypt = require('bcrypt');
 const connectMongo = require('./DB');
 require('dotenv').config();
 
+// Import middleware
+const { authenticateToken } = require('./middleware/auth');
+
+// Import routes
+const adminTutoringRoutes = require('./routes/adminTutoring');
+const authRoutes = require('./routes/auth');
+const profileRoutes = require('./routes/profile');
+const courseRoutes = require('./routes/course');
+const paymentRoutes = require('./routes/payment');
+const studentRoutes = require('./routes/studentRoutes');
+const classScheduleRoutes = require('./routes/classSchedule');
+const webinarRoutes = require('./routes/webinar');
+const batchRoutes = require('./routes/batches');
+const tutoringStudentRoutes = require('./routes/tutoringStudents'); // ADD THIS LINE
+
+// Import Models
+const Users = require('./Model/user');
+const Courses = require('./Model/course');
+
 const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// Enable CORS for frontend requests
+// Enable CORS
 const cors = require('cors');
-
 const allowedOrigins = [
   'http://localhost:3000',
   'https://abdash.netlify.app',
@@ -62,17 +80,21 @@ console.log('PORT:', process.env.PORT || 3000);
 console.log('=========================');
 
 // API Routes with /api prefix
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/user', require('./routes/profile'));
-app.use('/api/courses', require('./routes/course'));
-app.use('/api/payment', require('./routes/payment'));
-app.use('/api/students', require('./routes/studentRoutes'));
+app.use('/api/auth', authRoutes);
+app.use('/api/user', profileRoutes);
+app.use('/api/courses', courseRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/students', studentRoutes);
+app.use('/api/admin', authenticateToken, adminTutoringRoutes);
+app.use('/api/classes', classScheduleRoutes);
+app.use('/api/webinars', webinarRoutes);
+app.use('/api/batches', batchRoutes);
+app.use('/api/tutoring-students', tutoringStudentRoutes); // ADD THIS LINE - BEFORE the duplicate
 
-// Import Model
-const Users = require('./Model/user');
-const Courses = require('./Model/course');
+// REMOVE THIS DUPLICATE LINE - COMMENT IT OUT OR DELETE IT:
+// app.use('/api/students', studentRoutes); // ← THIS IS A DUPLICATE, REMOVE OR COMMENT THIS LINE
 
-// ============== USER ENDPOINTS ==============
+// ============== LEGACY ROUTES (Consider moving to route files) ==============
 
 // Get all users
 app.get('/', async (req, res) => {
@@ -451,6 +473,14 @@ app.use((err, req, res, next) => {
   });
 });
 
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Route not found',
+  });
+});
+
 // Start server
 async function startServer() {
   try {
@@ -466,13 +496,18 @@ async function startServer() {
       console.log(`🔗 Test endpoint: http://localhost:${PORT}/test`);
       console.log(`💳 Payment endpoints: http://localhost:${PORT}/api/payment`);
       console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-      console.log('\n=== PAYMENT SYSTEM READY ===');
+      console.log(
+        `👥 Tutoring students: http://localhost:${PORT}/api/tutoring-students`
+      );
+      console.log(`📅 Webinars: http://localhost:${PORT}/api/webinars`);
+      console.log(`🎯 Batches: http://localhost:${PORT}/api/batches`);
+      console.log('\n=== WEBINAR & TUTORING SYSTEM READY ===');
       console.log(
         `Razorpay Key ID: ${
           process.env.RAZORPAY_KEY_ID ? 'Configured' : 'NOT CONFIGURED!'
         }`
       );
-      console.log('============================\n');
+      console.log('=========================================\n');
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

@@ -65,6 +65,74 @@ const UserSchema = new mongoose.Schema({
       ref: 'Payment',
     },
   ],
+  tutoring: {
+    purchased: {
+      type: Boolean,
+      default: false,
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'active', 'completed'],
+      default: 'pending',
+    },
+    purchasedAt: {
+      type: Date,
+    },
+    activatedAt: {
+      type: Date,
+    },
+    activatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    mentorAvailabilityNotified: {
+      type: Boolean,
+      default: false,
+    },
+    lastNotifiedAt: {
+      type: Date,
+    },
+    completedAt: {
+      type: Date,
+    },
+    sessionCount: {
+      type: Number,
+      default: 0,
+    },
+    totalHours: {
+      type: Number,
+      default: 0,
+    },
+  },
+
+  // Google OAuth fields
+  googleId: {
+    type: String,
+    index: true,
+  },
+  provider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local',
+  },
+
+  // 🔥 NEW: Google Calendar integration fields
+  googleRefreshToken: {
+    type: String,
+    select: false, // Don't return in queries by default
+  },
+  googleAccessToken: {
+    type: String,
+    select: false,
+  },
+  googleTokenExpiry: {
+    type: Date,
+    select: false,
+  },
+  googleCalendarConnected: {
+    type: Boolean,
+    default: false,
+  },
 
   // PROFILE SETUP FIELDS
   fullName: { type: String, default: '' },

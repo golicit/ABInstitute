@@ -69,6 +69,19 @@ router.post(
       const user = new Users(userData);
       await user.save();
 
+      // AUTO-ASSIGN BATCH TO NEW USER
+      const batchService = require('../services/batchService');
+      try {
+        const batchResult = await batchService.assignBatchToStudent(user._id);
+        console.log(`✅ New user assigned to batch: ${batchResult.batchName}`);
+
+        // Update user with batch info for response
+        user.batch = batchResult.batchName;
+      } catch (batchError) {
+        console.error('Batch assignment failed:', batchError.message);
+        // Don't fail registration if batch assignment fails
+      }
+
       // Generate token
       const token = generateToken(user._id, user.role);
 

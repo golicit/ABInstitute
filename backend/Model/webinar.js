@@ -1,56 +1,152 @@
 const mongoose = require('mongoose');
 
-const WebinarSchema = new mongoose.Schema({
-    courseId: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Courses',
-        required: true 
+const webinarSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
     },
-    zoomWebinarId: { 
-        type: String, 
-        default: null 
+    description: {
+      type: String,
+      default: '',
     },
-    title: { 
-        type: String, 
-        required: true 
+
+    // Type: webinar (batch) or one_on_one
+    type: {
+      type: String,
+      enum: ['webinar', 'one_on_one'],
+      default: 'webinar',
+      required: true,
     },
-    scheduledAt: { 
-        type: Date, 
-        required: true 
+
+    // For webinar: batch reference
+    batch: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Batch',
+      default: null,
     },
-    durationMins: { 
-        type: Number, 
-        required: true,
-        min: 1 // Duration should be at least 1 minute
+
+    // For 1:1: student reference
+    studentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
     },
-    joinUrl: { 
-        type: String, 
-        default: null 
-    }, // stored encrypted if sensitive
-    recordingUrl: { 
-        type: String, 
-        default: null 
+
+    // Teacher/Admin who created the session
+    teacherId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
     },
-    createdAt: { 
-        type: Date, 
-        default: Date.now 
+
+    scheduledTime: {
+      type: Date,
+      required: true,
     },
-    updatedAt: { 
-        type: Date, 
-        default: Date.now 
-    }
+    duration: {
+      type: Number,
+      default: 60, // minutes
+      min: 15,
+      max: 240,
+    },
+
+    // Meeting fields (generic - can be Google Meet, Zoho, etc.)
+    meetingProvider: {
+      type: String,
+      enum: ['google_meet', 'zoho_meeting'],
+      default: 'google_meet',
+    },
+    meetingId: {
+      type: String,
+      index: true,
+    },
+    meetingLink: {
+      type: String,
+    },
+    meetingPassword: {
+      type: String,
+    },
+
+    // Status tracking
+    status: {
+      type: String,
+      enum: ['scheduled', 'live', 'completed', 'cancelled'],
+      default: 'scheduled',
+    },
+
+    // Participants (for webinar)
+    participants: [
+      {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+        },
+        email: {
+          type: String,
+        },
+        joined: {
+          type: Boolean,
+          default: false,
+        },
+        joinTime: {
+          type: Date,
+        },
+        leaveTime: {
+          type: Date,
+        },
+      },
+    ],
+
+    // Recording info
+    recordingLink: {
+      type: String,
+    },
+    recordingAvailable: {
+      type: Boolean,
+      default: false,
+    },
+
+    // For recurring sessions
+    isRecurring: {
+      type: Boolean,
+      default: false,
+    },
+    recurrencePattern: {
+      type: String,
+      enum: ['daily', 'weekly', 'monthly'],
+      default: 'weekly',
+    },
+    recurrenceEndDate: {
+      type: Date,
+    },
+
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Indexes for efficient querying
+webinarSchema.index({ scheduledTime: 1 });
+webinarSchema.index({ teacherId: 1, scheduledTime: 1 });
+webinarSchema.index({ studentId: 1, scheduledTime: 1 });
+webinarSchema.index({ batch: 1, scheduledTime: 1 });
+webinarSchema.index({ status: 1, scheduledTime: 1 });
+
+// Update timestamp before saving
+webinarSchema.pre('save', function (next) {
+  this.updatedAt = Date.now();
+  next();
 });
 
-// Update updatedAt before saving
-WebinarSchema.pre('save', function(next) {
-    this.updatedAt = Date.now();
-    next();
-});
-
-// Index for efficient queries
-WebinarSchema.index({ courseId: 1 });
-WebinarSchema.index({ scheduledAt: 1 });
-WebinarSchema.index({ createdAt: -1 });
-
-const Webinar = mongoose.model('Webinar', WebinarSchema);
-module.exports = Webinar;
+module.exports = mongoose.model('Webinar', webinarSchema);
