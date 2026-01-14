@@ -462,7 +462,7 @@ export default function Payment() {
               className='p-0 h-auto text-xs text-muted-foreground'
               onClick={() => {
                 localStorage.clear();
-                navigate('/auth');
+                window.location.href = 'https://dash.abinstitute.co.in';
               }}
             >
               Clear Data & Login Again

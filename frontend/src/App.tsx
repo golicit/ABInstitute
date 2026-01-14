@@ -2,6 +2,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Suspense, lazy } from 'react';
+import { toast } from '@/hooks/use-toast';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AppProvider } from './contexts/AppContext';
@@ -21,9 +22,12 @@ import CourseReader from './pages/CourseReader';
 import CourseDetail from './pages/CourseDetail';
 import EmailVerification from './pages/EmailVerification';
 import Payment from './pages/Payment';
+import WebinarDashboard from './pages/admin/WebinarDashboard';
+import { UserMeetingsDashboard } from './components/UserMeetingsDashboard';
 
-// Lazy load TutoringSessions
+// Lazy load components
 const TutoringSessions = lazy(() => import('./pages/TutoringSessions'));
+const TutoringDashboard = lazy(() => import('./pages/admin/TutoringDashboard'));
 
 const queryClient = new QueryClient();
 
@@ -116,6 +120,27 @@ const TutoringGuard = ({ children }: { children: JSX.Element }) => {
   return children;
 };
 
+/* ---------------- ADMIN GUARD ---------------- */
+const AdminGuard = ({ children }: { children: JSX.Element }) => {
+  const { user, loading, initialized } = useAuth();
+
+  // Show loading while auth is initializing
+  if (loading || !initialized) {
+    return <LoadingSpinner />;
+  }
+
+  if (!user || !['admin', 'owner'].includes(user.role)) {
+    toast({
+      title: 'Access Denied',
+      description: 'Admin access required',
+      variant: 'destructive',
+    });
+    return <Navigate to='/dashboard' replace />;
+  }
+
+  return children;
+};
+
 /* ---------------- APP ---------------- */
 const App = () => {
   return (
@@ -154,6 +179,11 @@ const App = () => {
                   <Route path='profile-setup' element={<ProfileSetup />} />
                   <Route path='my-courses' element={<MyCourses />} />
                   <Route path='explore' element={<ExploreCourses />} />
+                  <Route
+                    path='meetings'
+                    element={<UserMeetingsDashboard />}
+                  />{' '}
+                  {/* CHANGED HERE */}
                   <Route path='payments' element={<PaymentHistory />} />
                   <Route path='profile' element={<Profile />} />
                   <Route path='change-password' element={<ChangePassword />} />
@@ -174,6 +204,27 @@ const App = () => {
                           <TutoringSessions />
                         </Suspense>
                       </TutoringGuard>
+                    }
+                  />
+                  {/* Admin Routes INSIDE Dashboard Layout */}
+                  <Route
+                    path='admin-tutoring'
+                    element={
+                      <AdminGuard>
+                        <Suspense fallback={<LoadingSpinner />}>
+                          <TutoringDashboard />
+                        </Suspense>
+                      </AdminGuard>
+                    }
+                  />
+                  <Route
+                    path='admin-webinars'
+                    element={
+                      <AdminGuard>
+                        <Suspense fallback={<LoadingSpinner />}>
+                          <WebinarDashboard />
+                        </Suspense>
+                      </AdminGuard>
                     }
                   />
                 </Route>

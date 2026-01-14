@@ -8,6 +8,7 @@ import {
   Presentation,
   X,
   Video,
+  Users,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { Button } from '@/components/ui/button';
@@ -20,29 +21,50 @@ interface SidebarProps {
   onClose: () => void;
 }
 
-const menuItems = [
-  { icon: Home, label: 'Dashboard', path: '/dashboard' },
-  { icon: BookOpen, label: 'My Courses', path: '/dashboard/my-courses' },
-  {
-    icon: Video,
-    label: 'Private Mentorship',
-    path: '/dashboard/tutoring-sessions',
-  },
-  { icon: ShoppingCart, label: 'Explore Courses', path: '/dashboard/explore' },
-
-  {
-    icon: Presentation,
-    label: 'Webinar schedule & Zoho link',
-    path: '/dashboard/payments',
-  },
-  { icon: CreditCard, label: 'Payment History', path: '/dashboard/payments' },
-
-  { icon: User, label: 'Profile', path: '/dashboard/profile' },
-];
-
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
-  const { signOut } = useAuth();
+  const { user: authUser, signOut } = useAuth();
   const navigate = useNavigate();
+
+  const menuItems = [
+    { icon: Home, label: 'Dashboard', path: '/dashboard' },
+    { icon: BookOpen, label: 'My Courses', path: '/dashboard/my-courses' },
+    {
+      icon: ShoppingCart,
+      label: 'Explore Courses',
+      path: '/dashboard/explore',
+    },
+    {
+      icon: Presentation,
+      label: 'My Meetings',
+      path: '/dashboard/meetings',
+    },
+    { icon: CreditCard, label: 'Payment History', path: '/dashboard/payments' },
+    { icon: User, label: 'Profile', path: '/dashboard/profile' },
+    {
+      icon: Video,
+      label: 'Private Tutoring',
+      path: '/dashboard/tutoring-sessions',
+    },
+  ];
+
+  // Add admin menu only for admin users
+  const adminMenuItems =
+    authUser?.role === 'admin' || authUser?.role === 'owner'
+      ? [
+          {
+            icon: Users,
+            label: 'Tutoring Dashboard',
+            path: '/dashboard/admin-tutoring',
+          },
+          {
+            icon: Video,
+            label: 'Webinars & Sessions',
+            path: '/dashboard/admin-webinars',
+          },
+        ]
+      : [];
+
+  const allMenuItems = [...menuItems, ...adminMenuItems];
 
   return (
     <>
@@ -68,7 +90,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         </div>
 
         <nav className='p-4 space-y-1'>
-          {menuItems.map((item) => (
+          {allMenuItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
