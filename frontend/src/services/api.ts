@@ -326,7 +326,26 @@ export interface WebinarsListResponse {
     pages: number;
   };
 }
+// Add this interface with other interfaces
+export interface PaymentHistoryItem {
+  _id: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
+  type: 'course' | 'tutoring';
+  createdAt: string;
+  paymentId?: string;
+  courseName?: string;
+  description?: string;
+}
 
+export interface PaymentHistoryResponse {
+  success: boolean;
+  data?: PaymentHistoryItem[];
+  message?: string;
+  error?: string;
+}
 // Course interface
 export interface Course {
   _id: string;
@@ -748,6 +767,8 @@ export const coursesAPI = {
   },
 };
 
+
+
 // Dashboard API functions
 export const dashboardAPI = {
   // Get user dashboard data
@@ -1092,19 +1113,9 @@ export const paymentAPI = {
   },
 
   // Get payment history
-  async getPaymentHistory(): Promise<ApiResponse<Array<{
-    _id: string;
-    orderId: string;
-    amount: number;
-    currency: string;
-    status: 'pending' | 'completed' | 'failed' | 'refunded';
-    type: 'course' | 'tutoring';
-    createdAt: string;
-    paymentId?: string;
-    courseName?: string;
-  }>>> {
+  async getPaymentHistory(): Promise<ApiResponse<PaymentHistoryItem[]>> {
     try {
-      const response = await apiClient.get<ApiResponse<any>>('/api/payment/history');
+      const response = await apiClient.get<ApiResponse<PaymentHistoryItem[]>>('/api/payment/history');
       return response.data;
     } catch (error: any) {
       console.error('Error fetching payment history:', error);
@@ -1134,7 +1145,7 @@ export const paymentAPI = {
 
 // Webinar API functions
 export const webinarAPI = {
-  async getWebinars(filters?: {
+ async getWebinars(filters?: {
     type?: 'webinar' | 'one_on_one';
     status?: string;
     page?: number;
@@ -1160,6 +1171,25 @@ export const webinarAPI = {
       };
     }
   },
+
+  // NEW: Get user's webinars specifically
+  async getUserWebinars(): Promise<ApiResponse<Webinar[]>> {
+    try {
+      const response = await apiClient.get<ApiResponse<Webinar[]>>(
+        '/api/webinars/user/my-webinars'
+      );
+      console.log('User webinars response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching user webinars:', error);
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to fetch user webinars',
+        error: error.message,
+      };
+    }
+  },
+
 
   // Schedule webinar
   async scheduleWebinar(data: ScheduleWebinarRequest): Promise<ApiResponse<Webinar>> {

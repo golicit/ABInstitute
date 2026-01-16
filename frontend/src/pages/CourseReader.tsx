@@ -24,6 +24,8 @@ import {
   HelpCircle,
   ArrowRight,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 
 type Topic = {
@@ -69,6 +71,7 @@ export default function CourseReader() {
   const [isScrollingToElement, setIsScrollingToElement] =
     useState<boolean>(false);
   const viewerRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const tourTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const preloaded = useRef<Record<string, HTMLImageElement>>({}); // simple cache
 
@@ -84,6 +87,22 @@ export default function CourseReader() {
   // Calculate active topic and total pages early to avoid declaration issues
   const activeTopic = topics[activeTopicIndex];
   const totalPages = activeTopic?.images?.length ?? 0;
+
+  // Check if device is mobile/tablet
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
+
+  useEffect(() => {
+    const checkScreenSize = () => {
+      const width = window.innerWidth;
+      setIsMobile(width < 768);
+      setIsTablet(width >= 768 && width < 1024);
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   // Tour steps definition - simpler mobile-friendly approach
   const tourSteps: TourStep[] = [
@@ -365,6 +384,34 @@ export default function CourseReader() {
     };
   }, [showTour, currentTourStep, tourSteps]);
 
+  // Fullscreen handling
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener(
+        'webkitfullscreenchange',
+        handleFullscreenChange
+      );
+      document.removeEventListener(
+        'mozfullscreenchange',
+        handleFullscreenChange
+      );
+      document.removeEventListener(
+        'MSFullscreenChange',
+        handleFullscreenChange
+      );
+    };
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -393,6 +440,11 @@ export default function CourseReader() {
         case 'f':
           toggleFull();
           break;
+        case 'Escape':
+          if (isFullscreen) {
+            exitFullscreen();
+          }
+          break;
         case ' ':
           e.preventDefault();
           if (currentPage < totalPages - 1) {
@@ -404,7 +456,7 @@ export default function CourseReader() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentPage, totalPages, showTour]);
+  }, [currentPage, totalPages, showTour, isFullscreen]);
 
   // Check if user owns the course
   const userOwnsCourse = useMemo(() => {
@@ -743,21 +795,48 @@ export default function CourseReader() {
     }
   };
 
-  // Fullscreen toggle
-  const toggleFull = () => {
-    const el = viewerRef.current;
+  // Fullscreen functions
+  const enterFullscreen = () => {
+    const el = containerRef.current;
     if (!el) return;
-    if (!document.fullscreenElement) {
-      el.requestFullscreen?.();
-      setIsFullscreen(true);
-      toast({
-        title: '🔍 Entered Fullscreen',
-        description: 'Press ESC to exit. Use mouse wheel to zoom.',
-        duration: 3000,
-      });
+
+    if (el.requestFullscreen) {
+      el.requestFullscreen();
+    } else if ((el as any).webkitRequestFullscreen) {
+      (el as any).webkitRequestFullscreen();
+    } else if ((el as any).mozRequestFullScreen) {
+      (el as any).mozRequestFullScreen();
+    } else if ((el as any).msRequestFullscreen) {
+      (el as any).msRequestFullscreen();
+    }
+
+    setIsFullscreen(true);
+    toast({
+      title: '🔍 Entered Fullscreen',
+      description: 'Press ESC to exit. Use mouse wheel to zoom.',
+      duration: 3000,
+    });
+  };
+
+  const exitFullscreen = () => {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if ((document as any).webkitExitFullscreen) {
+      (document as any).webkitExitFullscreen();
+    } else if ((document as any).mozCancelFullScreen) {
+      (document as any).mozCancelFullScreen();
+    } else if ((document as any).msExitFullscreen) {
+      (document as any).msExitFullscreen();
+    }
+
+    setIsFullscreen(false);
+  };
+
+  const toggleFull = () => {
+    if (isFullscreen) {
+      exitFullscreen();
     } else {
-      document.exitFullscreen?.();
-      setIsFullscreen(false);
+      enterFullscreen();
     }
   };
 
@@ -812,9 +891,319 @@ export default function CourseReader() {
 
   const currentStep = tourSteps[currentTourStep];
 
+  // Fullscreen layout for mobile/tablet
+  const FullscreenMobileLayout = () => (
+    <div className='h-screen w-screen bg-black flex flex-col'>
+      {/* Image area - 80% of screen */}
+      <div className='flex-1 relative overflow-hidden flex items-center justify-center'>
+        {activeTopic && (
+          <TransformWrapper
+            initialScale={1}
+            wheel={{ step: 0.1 }}
+            doubleClick={{ disabled: true }}
+            pinch={{ step: 5 }}
+            minScale={0.5}
+            maxScale={3}
+          >
+            {({ zoomIn, zoomOut, resetTransform }) => (
+              <>
+                <div className='absolute top-4 right-4 z-10 flex gap-2'>
+                  <Button
+                    size='sm'
+                    onClick={() => zoomOut()}
+                    className='bg-black/50 hover:bg-black/70 text-white'
+                  >
+                    <ZoomOut className='w-4 h-4' />
+                  </Button>
+                  <Button
+                    size='sm'
+                    onClick={() => resetTransform()}
+                    className='bg-black/50 hover:bg-black/70 text-white'
+                  >
+                    100%
+                  </Button>
+                  <Button
+                    size='sm'
+                    onClick={() => zoomIn()}
+                    className='bg-black/50 hover:bg-black/70 text-white'
+                  >
+                    <ZoomIn className='w-4 h-4' />
+                  </Button>
+                </div>
+                <TransformComponent>
+                  <img
+                    src={activeTopic.images[currentPage]}
+                    alt={`Page ${currentPage + 1} - ${activeTopic.title}`}
+                    className='max-h-full max-w-full object-contain'
+                    style={{
+                      filter:
+                        !userOwnsCourse && isLocked
+                          ? 'blur(6px) grayscale(20%)'
+                          : 'none',
+                      opacity: !userOwnsCourse && isLocked ? '0.8' : '1',
+                    }}
+                    onContextMenu={(e) => e.preventDefault()}
+                    draggable={false}
+                  />
+                </TransformComponent>
+              </>
+            )}
+          </TransformWrapper>
+        )}
+
+        {/* Watermark notice */}
+        {!userOwnsCourse && isLocked && (
+          <div className='absolute bottom-4 left-1/2 transform -translate-x-1/2 text-sm text-center px-4 py-2 bg-yellow-900/30 rounded-lg border border-yellow-700/50'>
+            ⚠️ Preview Mode - Purchase to remove watermarks
+          </div>
+        )}
+
+        {/* Exit fullscreen button */}
+        <Button
+          onClick={exitFullscreen}
+          className='absolute top-4 left-4 z-10 bg-black/50 hover:bg-black/70 text-white'
+          size='sm'
+        >
+          <Minimize2 className='w-4 h-4 mr-2' />
+          Exit
+        </Button>
+      </div>
+
+      {/* Navigation area - 20% of screen */}
+      <div className='h-1/5 bg-black/90 border-t border-white/10 flex flex-col justify-center p-4'>
+        <div className='flex items-center justify-center gap-4 w-full'>
+          <Button
+            className='gap-2 bg-[#22C3B3] hover:bg-[#1AA298] flex-1 max-w-[200px]'
+            disabled={currentPage === 0}
+            onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+          >
+            <ChevronLeft className='w-5 h-5' />
+            <span>Previous</span>
+          </Button>
+
+          <div className='flex flex-col items-center'>
+            <div className='text-sm font-medium'>
+              Page {currentPage + 1} of {totalPages}
+            </div>
+            <div className='text-xs text-white/60'>{activeTopic?.title}</div>
+          </div>
+
+          <Button
+            className='gap-2 bg-[#22C3B3] hover:bg-[#1AA298] flex-1 max-w-[200px]'
+            disabled={currentPage >= totalPages - 1}
+            onClick={() =>
+              setCurrentPage((p) => Math.min(totalPages - 1, p + 1))
+            }
+          >
+            <span>Next</span>
+            <ChevronRight className='w-5 h-5' />
+          </Button>
+        </div>
+
+        {/* Page indicator dots for mobile */}
+        <div className='flex justify-center gap-1 mt-3'>
+          {Array.from({ length: Math.min(5, totalPages) }).map((_, idx) => {
+            const pageIdx = Math.min(currentPage, totalPages - 5) + idx;
+            if (pageIdx >= totalPages) return null;
+            return (
+              <div
+                key={pageIdx}
+                className={`w-2 h-2 rounded-full ${
+                  pageIdx === currentPage ? 'bg-[#22C3B3]' : 'bg-white/30'
+                }`}
+              />
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Desktop fullscreen layout
+  const FullscreenDesktopLayout = () => (
+    <div className='h-screen w-screen bg-black flex'>
+      {/* Sidebar for desktop fullscreen */}
+      <div className='w-64 bg-black/90 border-r border-white/10 p-4 flex flex-col'>
+        <div className='mb-6'>
+          <div className='flex items-center justify-between mb-2'>
+            <h3 className='font-bold text-white'>{course?.title}</h3>
+            <Button
+              onClick={exitFullscreen}
+              size='sm'
+              className='bg-black/50 hover:bg-black/70 text-white'
+            >
+              <Minimize2 className='w-4 h-4' />
+            </Button>
+          </div>
+          <div className='text-sm text-white/60'>
+            Topic {activeTopicIndex + 1} of {topics.length}
+          </div>
+        </div>
+
+        <div className='flex-1 overflow-y-auto space-y-2'>
+          {topics.map((t, idx) => {
+            const active = idx === activeTopicIndex;
+            const completed = progress[t._id] === 100;
+            return (
+              <div
+                key={t._id}
+                className={`p-3 rounded-lg cursor-pointer transition-all ${
+                  active
+                    ? 'bg-[#22C3B3]/20 border border-[#22C3B3]/30'
+                    : 'bg-white/5 hover:bg-white/10'
+                }`}
+                onClick={() => {
+                  setActiveTopicIndex(idx);
+                  setCurrentPage(0);
+                }}
+              >
+                <div className='flex items-center gap-2'>
+                  {completed && (
+                    <CheckCircle className='w-4 h-4 text-green-400' />
+                  )}
+                  <span className='text-sm truncate'>{t.title}</span>
+                </div>
+                <div className='text-xs text-white/60 mt-1'>
+                  {t.images.length} pages • {progress[t._id] || 0}%
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className='mt-4 pt-4 border-t border-white/10'>
+          <div className='text-sm mb-2'>Progress: {weightedProgress}%</div>
+          <div className='w-full bg-white/20 h-2 rounded-full overflow-hidden'>
+            <div
+              style={{ width: `${weightedProgress}%` }}
+              className='h-2 bg-gradient-to-r from-[#22C3B3] to-[#1AA298]'
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Main content area */}
+      <div className='flex-1 flex flex-col'>
+        {/* Toolbar */}
+        <div className='h-16 bg-black/80 border-b border-white/10 flex items-center justify-between px-4'>
+          <div className='flex items-center gap-4'>
+            <Button
+              onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+              className='gap-2 bg-[#22C3B3] hover:bg-[#1AA298]'
+            >
+              <ChevronLeft className='w-4 h-4' />
+              Previous
+            </Button>
+
+            <div className='text-center'>
+              <div className='text-lg font-medium'>
+                {activeTopic?.title} - Page {currentPage + 1} of {totalPages}
+              </div>
+              <div className='text-sm text-white/60'>
+                {getProgressStatus(progress[activeTopic?._id] || 0)}
+              </div>
+            </div>
+
+            <Button
+              onClick={() =>
+                setCurrentPage((p) => Math.min(totalPages - 1, p + 1))
+              }
+              disabled={currentPage >= totalPages - 1}
+              className='gap-2 bg-[#22C3B3] hover:bg-[#1AA298]'
+            >
+              Next
+              <ChevronRight className='w-4 h-4' />
+            </Button>
+          </div>
+
+          <div className='flex items-center gap-2'>
+            {currentPage === totalPages - 1 && (
+              <Button
+                onClick={() => markTopicComplete(activeTopic?._id || '')}
+                className='gap-2 bg-green-600 hover:bg-green-700'
+              >
+                <CheckCircle className='w-4 h-4' />
+                Complete Topic
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Image area */}
+        <div className='flex-1 relative overflow-hidden flex items-center justify-center'>
+          {activeTopic && (
+            <TransformWrapper
+              initialScale={1}
+              wheel={{ step: 0.1 }}
+              doubleClick={{ disabled: true }}
+              pinch={{ step: 5 }}
+              minScale={0.5}
+              maxScale={3}
+            >
+              {({ zoomIn, zoomOut, resetTransform }) => (
+                <>
+                  <div className='absolute top-4 left-4 z-10 flex gap-2'>
+                    <Button
+                      onClick={() => zoomOut()}
+                      className='bg-black/50 hover:bg-black/70 text-white'
+                    >
+                      <ZoomOut className='w-4 h-4' />
+                    </Button>
+                    <Button
+                      onClick={() => resetTransform()}
+                      className='bg-black/50 hover:bg-black/70 text-white'
+                    >
+                      100%
+                    </Button>
+                    <Button
+                      onClick={() => zoomIn()}
+                      className='bg-black/50 hover:bg-black/70 text-white'
+                    >
+                      <ZoomIn className='w-4 h-4' />
+                    </Button>
+                  </div>
+                  <TransformComponent>
+                    <img
+                      src={activeTopic.images[currentPage]}
+                      alt={`Page ${currentPage + 1} - ${activeTopic.title}`}
+                      className='max-h-[80vh] max-w-full object-contain'
+                      style={{
+                        filter:
+                          !userOwnsCourse && isLocked
+                            ? 'blur(6px) grayscale(20%)'
+                            : 'none',
+                        opacity: !userOwnsCourse && isLocked ? '0.8' : '1',
+                      }}
+                      onContextMenu={(e) => e.preventDefault()}
+                      draggable={false}
+                    />
+                  </TransformComponent>
+                </>
+              )}
+            </TransformWrapper>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // If in fullscreen mode, render the fullscreen layout
+  if (isFullscreen) {
+    return (
+      <EReaderSecurityWrapper>
+        {isMobile || isTablet ? (
+          <FullscreenMobileLayout />
+        ) : (
+          <FullscreenDesktopLayout />
+        )}
+      </EReaderSecurityWrapper>
+    );
+  }
+
+  // Normal layout (non-fullscreen)
   return (
     <EReaderSecurityWrapper>
-      {/* Add CSS for highlight animation */}
       <style>{`
         .highlight-element {
           animation: highlightPulse 1.5s ease-in-out;
@@ -835,7 +1224,10 @@ export default function CourseReader() {
         }
       `}</style>
 
-      <main className='min-h-screen bg-gradient-to-br from-[#0b1f3a] to-[#090e1d] text-white p-4 relative'>
+      <main
+        className='min-h-screen bg-gradient-to-br from-[#0b1f3a] to-[#090e1d] text-white p-4 relative'
+        ref={containerRef}
+      >
         {/* Tour Modal - COMPLETELY transparent background */}
         {showTour && (
           <div

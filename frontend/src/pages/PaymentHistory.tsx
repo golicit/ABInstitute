@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,30 +10,33 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  CreditCard,
-  Download,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Loader2,
-} from 'lucide-react';
+import { CreditCard, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
+import { apiClient } from '@/services/api'; // Import the axios instance from your api.ts
 
+// Define the payment interface based on the backend response
 interface Payment {
   id: string;
-  courseName: string;
-  date: Date;
+  _id: string;
+  orderId: string;
   amount: number;
   currency: string;
-  status: 'pending' | 'completed' | 'failed' | 'paid';
-  paidAt?: Date;
-  createdAt: Date;
+  status: 'pending' | 'completed' | 'failed';
+  type: 'course' | 'tutoring';
+  createdAt: string;
+  date: string;
+  paidAt?: string;
+  gateway: string;
+  tutoringType?: string;
+  courseName: string;
+  paymentId?: string;
 }
 
+// Define the API response structure - IMPORTANT: matches backend response
 interface ApiResponse {
   success: boolean;
-  payments: Payment[];
+  payments?: Payment[]; // Backend returns "payments" not "data"
   message?: string;
+  error?: string;
 }
 
 const PaymentHistory = () => {
@@ -49,28 +51,56 @@ const PaymentHistory = () => {
   const fetchPaymentHistory = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Please log in to view payment history');
-        setLoading(false);
-        return;
-      }
+      setError(null);
 
-      const res = await axios.get<ApiResponse>(
-        'https://abinstitute.onrender.com/api/payment/history',
-        {
-          headers: { Authorization: `Bearer ${token}` },
+      console.log('Fetching payment history from API...');
+
+      // Use the apiClient from your api.ts
+      const response = await apiClient.get<ApiResponse>('/api/payment/history');
+
+      console.log('Full API Response:', response.data);
+
+      if (response.data.success) {
+        // IMPORTANT: Backend returns "payments" array, not "data"
+        if (response.data.payments && Array.isArray(response.data.payments)) {
+          console.log(`Found ${response.data.payments.length} payments`);
+          setPayments(response.data.payments);
+
+          if (response.data.payments.length === 0) {
+            setError('No payment history found');
+          }
+        } else {
+          console.log('No payments array in response');
+          setPayments([]);
+          setError('No payment history available');
         }
-      );
-
-      if (res.data.success) {
-        setPayments(res.data.payments);
       } else {
-        setError(res.data.message || 'Failed to fetch payment history');
+        setError(response.data.message || 'Failed to fetch payment history');
       }
     } catch (err: any) {
       console.error('Error fetching payment history:', err);
-      setError(err.response?.data?.message || 'Failed to load payment history');
+
+      // Detailed error logging
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        config: err.config?.url,
+      });
+
+      if (err.response?.status === 401) {
+        setError('Session expired. Please log in again.');
+      } else if (err.response?.status === 404) {
+        setError('Payment history endpoint not found. Please contact support.');
+      } else if (err.code === 'ECONNABORTED') {
+        setError('Request timeout. Please try again.');
+      } else if (!err.response) {
+        setError('Network error. Please check your connection.');
+      } else {
+        setError(
+          err.response?.data?.message || 'Failed to load payment history'
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -79,7 +109,6 @@ const PaymentHistory = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
-      case 'paid':
         return <CheckCircle className='h-4 w-4' />;
       case 'failed':
         return <XCircle className='h-4 w-4' />;
@@ -95,7 +124,6 @@ const PaymentHistory = () => {
   ): 'default' | 'destructive' | 'secondary' | 'outline' => {
     switch (status) {
       case 'completed':
-      case 'paid':
         return 'default';
       case 'failed':
         return 'destructive';
@@ -109,25 +137,49 @@ const PaymentHistory = () => {
   const formatStatus = (status: string) => {
     switch (status) {
       case 'completed':
-      case 'paid':
         return 'paid';
       case 'failed':
         return 'failed';
       case 'pending':
         return 'pending';
       default:
-        return status;
+        return status.toLowerCase();
     }
   };
 
-  const totalPaid = payments
-    .filter((p) => p.status === 'completed' || p.status === 'paid')
-    .reduce((sum, p) => sum + p.amount, 0);
-
   const formatAmount = (amount: number) => {
-    // Convert from paise to rupees
-    return '₹' + (amount / 100).toFixed(2);
+    // Amount is in paise (Razorpay default), convert to rupees
+    const amountInRupees = amount / 100;
+    return '₹' + amountInRupees.toFixed(2);
   };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getPaymentDescription = (payment: Payment) => {
+    if (payment.courseName) return payment.courseName;
+    if (payment.type === 'tutoring') {
+      return payment.tutoringType === 'private_mentorship'
+        ? 'Private Mentorship'
+        : 'Tutoring Session';
+    }
+    return 'Course Enrollment';
+  };
+
+  const totalPaid = payments
+    .filter((p) => p.status === 'completed')
+    .reduce((sum, p) => sum + p.amount, 0);
 
   if (loading) {
     return (
@@ -140,32 +192,32 @@ const PaymentHistory = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className='min-h-screen flex items-center justify-center'>
-        <div className='text-center'>
-          <XCircle className='h-12 w-12 text-destructive mx-auto mb-4' />
-          <h3 className='text-lg font-semibold mb-2'>
-            Error Loading Payment History
-          </h3>
-          <p className='text-muted-foreground mb-4'>{error}</p>
-          <Button onClick={fetchPaymentHistory} variant='outline'>
-            <Loader2 className='mr-2 h-4 w-4' />
-            Try Again
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className='space-y-6'>
       <div>
         <h1 className='text-3xl font-bold'>Payment History</h1>
-        <p className='text-muted-foreground'>
-          View all your transactions and download invoices
-        </p>
+        <p className='text-muted-foreground'>View all your transactions</p>
       </div>
+
+      {error && (
+        <div
+          className='p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg'
+          role='alert'
+        >
+          <div className='flex items-center'>
+            <XCircle className='h-5 w-5 mr-2' />
+            {error}
+          </div>
+          <Button
+            onClick={fetchPaymentHistory}
+            variant='outline'
+            size='sm'
+            className='mt-2'
+          >
+            Try Again
+          </Button>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className='grid gap-6 md:grid-cols-3'>
@@ -177,11 +229,7 @@ const PaymentHistory = () => {
           <CardContent>
             <div className='text-2xl font-bold'>{formatAmount(totalPaid)}</div>
             <p className='text-xs text-muted-foreground'>
-              {
-                payments.filter(
-                  (p) => p.status === 'completed' || p.status === 'paid'
-                ).length
-              }{' '}
+              {payments.filter((p) => p.status === 'completed').length}{' '}
               successful payments
             </p>
           </CardContent>
@@ -198,28 +246,26 @@ const PaymentHistory = () => {
             <div className='text-2xl font-bold'>
               {
                 payments.filter(
-                  (p) => p.status === 'completed' || p.status === 'paid'
+                  (p) => p.status === 'completed' && p.type === 'course'
                 ).length
               }
             </div>
-            <p className='text-xs text-muted-foreground'>Active enrollments</p>
+            <p className='text-xs text-muted-foreground'>Course enrollments</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className='flex flex-row items-center justify-between pb-2'>
             <CardTitle className='text-sm font-medium'>
-              Pending Payments
+              Tutoring Sessions
             </CardTitle>
             <Clock className='h-4 w-4 text-muted-foreground' />
           </CardHeader>
           <CardContent>
             <div className='text-2xl font-bold'>
-              {payments.filter((p) => p.status === 'pending').length}
+              {payments.filter((p) => p.type === 'tutoring').length}
             </div>
-            <p className='text-xs text-muted-foreground'>
-              Awaiting confirmation
-            </p>
+            <p className='text-xs text-muted-foreground'>Tutoring purchases</p>
           </CardContent>
         </Card>
       </div>
@@ -238,61 +284,49 @@ const PaymentHistory = () => {
                   <TableHead>Date</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className='text-right'>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {payments.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={4}
                       className='text-center text-muted-foreground'
                     >
                       No payment history available
                     </TableCell>
                   </TableRow>
                 ) : (
-                  payments.map((payment) => (
-                    <TableRow key={payment.id}>
-                      <TableCell className='font-medium'>
-                        {payment.courseName || 'Course Enrollment'}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(
-                          payment.paidAt || payment.createdAt
-                        ).toLocaleDateString('en-IN', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </TableCell>
-                      <TableCell className='font-semibold'>
-                        {formatAmount(payment.amount)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={getStatusVariant(payment.status)}
-                          className='flex w-fit items-center gap-1'
-                        >
-                          {getStatusIcon(payment.status)}
-                          <span className='capitalize'>
-                            {formatStatus(payment.status)}
-                          </span>
-                        </Badge>
-                      </TableCell>
-                      <TableCell className='text-right'>
-                        {(payment.status === 'completed' ||
-                          payment.status === 'paid') && (
-                          <Button variant='ghost' size='sm'>
-                            <Download className='mr-2 h-4 w-4' />
-                            Invoice
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  payments
+                    .sort(
+                      (a, b) =>
+                        new Date(b.date || b.createdAt).getTime() -
+                        new Date(a.date || a.createdAt).getTime()
+                    )
+                    .map((payment) => (
+                      <TableRow key={payment.id || payment._id}>
+                        <TableCell className='font-medium'>
+                          {getPaymentDescription(payment)}
+                        </TableCell>
+                        <TableCell>
+                          {formatDate(payment.date || payment.createdAt)}
+                        </TableCell>
+                        <TableCell className='font-semibold'>
+                          {formatAmount(payment.amount)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={getStatusVariant(payment.status)}
+                            className='flex w-fit items-center gap-1'
+                          >
+                            {getStatusIcon(payment.status)}
+                            <span className='capitalize'>
+                              {formatStatus(payment.status)}
+                            </span>
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
                 )}
               </TableBody>
             </Table>
