@@ -12,12 +12,15 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   initialized: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<{ error: any; user?: User }>;
   signUp: (
     email: string,
     password: string,
     name: string
-  ) => Promise<{ error: any }>;
+  ) => Promise<{ error: any; user?: User }>;
   signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
@@ -128,26 +131,53 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     setLoading(true);
 
     try {
+      console.log('AuthContext: Attempting sign in with:', { email });
+
+      // Make sure we're calling the correct API endpoint
       const response = await authAPI.login({ email, password });
 
+      console.log('AuthContext: Sign in response:', response);
+
       if (response.success && response.data) {
-        setUser(response.data.user);
-        // Store in localStorage
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-        localStorage.setItem('token', response.data.token || '');
+        // IMPORTANT: response.data should have user and token
+        const userData = response.data.user || response.data?.user;
+        const token = response.data.token || response.data?.token;
+
+        if (!userData || !token) {
+          console.error(
+            'AuthContext: Missing user or token in response:',
+            response
+          );
+          setLoading(false);
+          return {
+            error: 'Invalid response from server',
+            user: undefined,
+          };
+        }
+
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('token', token);
         setLoading(false);
-        return { error: null };
+        return {
+          error: null,
+          user: userData,
+        };
       }
 
-      // Explicit invalid credential handling
       setLoading(false);
       return {
         error: response?.message || 'Invalid email or password',
+        user: undefined,
       };
-    } catch (err) {
+    } catch (err: any) {
+      console.error('SignIn error:', err);
       setLoading(false);
       return {
-        error: 'Something went wrong. Please try again.',
+        error:
+          err.response?.data?.message ||
+          'Something went wrong. Please try again.',
+        user: undefined,
       };
     }
   };
@@ -156,21 +186,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     setLoading(true);
 
     try {
+      console.log('AuthContext: Starting signup for:', email);
+
       const response = await authAPI.register({ email, password, name });
+
+      console.log('AuthContext: Signup response:', response);
 
       if (response.success && response.data) {
         setUser(response.data.user);
         localStorage.setItem('user', JSON.stringify(response.data.user));
         localStorage.setItem('token', response.data.token || '');
         setLoading(false);
-        return { error: null };
+        return {
+          error: null,
+          user: response.data.user, // Return the user
+        };
       }
 
       setLoading(false);
-      return { error: response.message || 'Registration failed' };
-    } catch (error) {
+      return {
+        error: response.message || 'Registration failed',
+        user: undefined,
+      };
+    } catch (error: any) {
+      console.error('AuthContext: Signup catch error:', error);
       setLoading(false);
-      return { error: 'Registration failed. Please try again.' };
+      return {
+        error: error.message || 'Registration failed. Please try again.',
+        user: undefined,
+      };
     }
   };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { z } from 'zod';
 import Lottie from 'lottie-react';
 import loadingAnimation from '@/assets/loading.json';
+import { apiClient } from '@/services/api';
 
 const loginSchema = z.object({
   email: z.string().trim().email({ message: 'Invalid email address' }),
@@ -47,12 +48,34 @@ const forgotPasswordSchema = z.object({
   email: z.string().trim().email({ message: 'Invalid email address' }),
 });
 
+const resetPasswordSchema = z
+  .object({
+    password: z
+      .string()
+      .min(8, { message: 'Password must be at least 8 characters' })
+      .regex(/[A-Z]/, { message: 'Must contain at least one uppercase letter' })
+      .regex(/[a-z]/, { message: 'Must contain at least one lowercase letter' })
+      .regex(/[0-9]/, { message: 'Must contain at least one number' })
+      .regex(/[^A-Za-z0-9]/, {
+        message: 'Must contain at least one special character',
+      }),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ['confirmPassword'],
+  });
+
 const Auth = () => {
   const navigate = useNavigate();
-  const { user, signIn, signUp, signInWithGoogle, resetPassword } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { user, signIn, signUp, signInWithGoogle, resetPassword, signOut } =
+    useAuth();
   const [activeTab, setActiveTab] = useState('login');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState<string>('');
 
   // Form states
   const [loginData, setLoginData] = useState({ email: '', password: '' });
@@ -63,47 +86,133 @@ const Auth = () => {
     confirmPassword: '',
   });
   const [forgotEmail, setForgotEmail] = useState('');
+  const [resetData, setResetData] = useState({
+    password: '',
+    confirmPassword: '',
+  });
 
   useEffect(() => {
-    if (user) {
+    // Check for reset token in URL
+    const tabParam = searchParams.get('tab');
+    const tokenParam = searchParams.get('token');
+
+    if (tabParam === 'reset' && tokenParam) {
+      // If user is logged in, log them out first for security
+      if (user) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('is_paid');
+      }
+
+      setResetToken(tokenParam);
+      setActiveTab('reset');
+      verifyResetToken(tokenParam);
+    } else if (user) {
+      // Only redirect to dashboard if not trying to reset password
       navigate('/dashboard');
     }
-  }, [user, navigate]);
+  }, [user, navigate, searchParams]);
+
+  const verifyResetToken = async (token: string) => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.get<{
+        success: boolean;
+        message?: string;
+        data?: { email: string };
+      }>(`/api/auth/reset-password/${token}`);
+
+      if (response.data.success && response.data.data) {
+        setResetEmail(response.data.data.email);
+        toast({
+          title: 'Valid Reset Link',
+          description: 'Enter your new password below.',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Invalid Token',
+          description:
+            response.data.message ||
+            'The reset link is invalid or has expired.',
+        });
+        setActiveTab('login');
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to verify reset link. Please request a new one.',
+      });
+      setActiveTab('forgot');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    console.log('🔍 Login form submitted', loginData);
+
     setErrors({});
     setIsLoading(true);
 
     try {
       const validated = loginSchema.parse(loginData);
-      const { error } = await signIn(validated.email, validated.password);
+      console.log('✅ Form validated, calling signIn...');
+
+      const { error, user } = await signIn(validated.email, validated.password);
+
+      console.log('📝 signIn response:', { error, user });
 
       if (error) {
+        console.error('❌ Login error:', error);
         toast({
           variant: 'destructive',
           title: 'Login failed',
           description: error,
         });
+        setIsLoading(false);
         return;
       }
 
-      toast({
-        title: 'Login successful',
-        description: 'Welcome back!',
-      });
-
-      navigate('/dashboard');
+      // If we have a user (login was successful)
+      if (user) {
+        console.log('✅ Login successful, navigating to dashboard');
+        toast({
+          title: 'Login successful',
+          description: 'Welcome back!',
+        });
+        navigate('/dashboard');
+      } else {
+        console.error('⚠️ No user returned but no error either');
+        toast({
+          variant: 'destructive',
+          title: 'Login failed',
+          description: 'No user data returned. Please try again.',
+        });
+      }
     } catch (err) {
+      console.error('💥 Login catch block error:', err);
       if (err instanceof z.ZodError) {
         const newErrors: Record<string, string> = {};
         err.errors.forEach((error) => {
           newErrors[error.path[0]] = error.message;
         });
         setErrors(newErrors);
+        console.log('📋 Validation errors:', newErrors);
+      } else {
+        console.error('❌ Unexpected error:', err);
+        toast({
+          variant: 'destructive',
+          title: 'Login failed',
+          description: 'An unexpected error occurred. Please try again.',
+        });
       }
     } finally {
       setIsLoading(false);
+      console.log('🏁 Login process finished');
     }
   };
 
@@ -131,38 +240,67 @@ const Auth = () => {
 
     try {
       const validated = signupSchema.parse(signupData);
-      const { error } = await signUp(
+      console.log('Signup attempt with:', {
+        email: validated.email,
+        name: validated.name,
+      });
+
+      const { error, user } = await signUp(
         validated.email,
         validated.password,
         validated.name
       );
 
-      if (!error) {
-        // Check if payment is required
-        const paymentCheck = await checkPaymentStatus();
+      console.log('Signup response:', { error, user });
 
-        if (paymentCheck.isPaid) {
-          // User already paid, go to dashboard
-          navigate('/dashboard');
-        } else {
-          // Redirect to payment page
-          navigate('/payment');
-        }
-      } else {
-        // Handle signup error
+      if (error) {
         toast({
           variant: 'destructive',
           title: 'Signup failed',
           description: error,
         });
+        setIsLoading(false);
+        return;
+      }
+
+      // If we have a user (signup was successful)
+      if (user) {
+        toast({
+          title: 'Signup successful!',
+          description: 'Account created successfully',
+        });
+
+        // Check if payment is required
+        const paymentCheck = await checkPaymentStatus();
+
+        if (paymentCheck.isPaid) {
+          navigate('/dashboard');
+        } else {
+          navigate('/payment');
+        }
+      } else {
+        // Edge case: no error but also no user
+        toast({
+          variant: 'destructive',
+          title: 'Signup failed',
+          description: 'No user data returned. Please try again.',
+        });
       }
     } catch (err) {
+      console.error('Signup error:', err);
+
       if (err instanceof z.ZodError) {
         const newErrors: Record<string, string> = {};
         err.errors.forEach((error) => {
           newErrors[error.path[0]] = error.message;
         });
         setErrors(newErrors);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Signup error',
+          description: 'An unexpected error occurred. Please try again.',
+        });
       }
     } finally {
       setIsLoading(false);
@@ -176,9 +314,22 @@ const Auth = () => {
 
     try {
       const validated = forgotPasswordSchema.parse({ email: forgotEmail });
-      await resetPassword(validated.email);
-      setForgotEmail('');
-      setActiveTab('login');
+      const { error } = await resetPassword(validated.email);
+
+      if (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: error,
+        });
+      } else {
+        toast({
+          title: 'Email Sent',
+          description: 'Check your email for password reset instructions.',
+        });
+        setForgotEmail('');
+        setActiveTab('login');
+      }
     } catch (err) {
       if (err instanceof z.ZodError) {
         const newErrors: Record<string, string> = {};
@@ -186,6 +337,78 @@ const Auth = () => {
           newErrors[error.path[0]] = error.message;
         });
         setErrors(newErrors);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to send reset email. Please try again.',
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+
+    if (!resetToken) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          'Reset token is missing. Please request a new password reset.',
+      });
+      setActiveTab('forgot');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const validated = resetPasswordSchema.parse(resetData);
+
+      const response = await apiClient.post<{
+        success: boolean;
+        message?: string;
+        data?: any;
+      }>(`/api/auth/reset-password/${resetToken}`, {
+        password: validated.password,
+      });
+
+      if (response.data.success) {
+        toast({
+          title: 'Password Reset Successful',
+          description:
+            response.data.message ||
+            'Your password has been reset successfully. You can now login with your new password.',
+        });
+        setResetData({ password: '', confirmPassword: '' });
+        setActiveTab('login');
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Reset Failed',
+          description: response.data.message || 'Failed to reset password.',
+        });
+      }
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        const newErrors: Record<string, string> = {};
+        err.errors.forEach((error) => {
+          newErrors[error.path[0]] = error.message;
+        });
+        setErrors(newErrors);
+      } else {
+        const errorMessage =
+          err.response?.data?.message ||
+          'Failed to reset password. Please try again.';
+        toast({
+          variant: 'destructive',
+          title: 'Reset Failed',
+          description: errorMessage,
+        });
       }
     } finally {
       setIsLoading(false);
@@ -245,12 +468,33 @@ const Auth = () => {
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className='grid w-full grid-cols-3'>
-                <TabsTrigger value='login'>Login</TabsTrigger>
-                <TabsTrigger value='signup'>Sign Up</TabsTrigger>
-                <TabsTrigger value='forgot'>Forgot</TabsTrigger>
+                <TabsTrigger
+                  value='login'
+                  className={resetToken ? 'hidden' : ''}
+                >
+                  Login
+                </TabsTrigger>
+                <TabsTrigger
+                  value='signup'
+                  className={resetToken ? 'hidden' : ''}
+                >
+                  Sign Up
+                </TabsTrigger>
+                <TabsTrigger
+                  value='forgot'
+                  className={resetToken ? 'hidden' : ''}
+                >
+                  Forgot
+                </TabsTrigger>
+                <TabsTrigger
+                  value='reset'
+                  className={resetToken ? '' : 'hidden'}
+                >
+                  Reset
+                </TabsTrigger>
               </TabsList>
 
-              <TabsContent value='login'>
+              <TabsContent value='login' className='mt-4'>
                 <form onSubmit={handleLogin} className='space-y-4'>
                   <div className='space-y-2'>
                     <Label htmlFor='login-email'>Email</Label>
@@ -333,7 +577,7 @@ const Auth = () => {
                 </form>
               </TabsContent>
 
-              <TabsContent value='signup'>
+              <TabsContent value='signup' className='mt-4'>
                 <form onSubmit={handleSignup} className='space-y-4'>
                   <div className='space-y-2'>
                     <Label htmlFor='signup-name'>Full Name</Label>
@@ -458,7 +702,7 @@ const Auth = () => {
                 </form>
               </TabsContent>
 
-              <TabsContent value='forgot'>
+              <TabsContent value='forgot' className='mt-4'>
                 <form onSubmit={handleForgotPassword} className='space-y-4'>
                   <div className='space-y-2'>
                     <Label htmlFor='forgot-email'>Email</Label>
@@ -482,6 +726,109 @@ const Auth = () => {
                     {isLoading ? 'Sending...' : 'Send Reset Link'}
                   </Button>
                 </form>
+              </TabsContent>
+
+              {/* Add Reset Password Tab */}
+              <TabsContent value='reset' className='mt-4'>
+                {resetEmail ? (
+                  <>
+                    <div className='mb-4 p-3 bg-green-50 border border-green-200 rounded-md'>
+                      <p className='text-sm text-green-800'>
+                        Reset password for: <strong>{resetEmail}</strong>
+                      </p>
+                      <p className='text-xs text-green-600 mt-1'>
+                        You are logged out for security. Please create a new
+                        password.
+                      </p>
+                    </div>
+                    <form onSubmit={handleResetPassword} className='space-y-4'>
+                      <div className='space-y-2'>
+                        <Label htmlFor='reset-password'>New Password</Label>
+                        <Input
+                          id='reset-password'
+                          type='password'
+                          placeholder='••••••••'
+                          value={resetData.password}
+                          onChange={(e) =>
+                            setResetData({
+                              ...resetData,
+                              password: e.target.value,
+                            })
+                          }
+                          disabled={isLoading}
+                        />
+                        {errors.password && (
+                          <p className='text-sm text-destructive'>
+                            {errors.password}
+                          </p>
+                        )}
+                        <p className='text-xs text-muted-foreground'>
+                          Password must be at least 8 characters with uppercase,
+                          lowercase, number, and special character.
+                        </p>
+                      </div>
+
+                      <div className='space-y-2'>
+                        <Label htmlFor='reset-confirm'>
+                          Confirm New Password
+                        </Label>
+                        <Input
+                          id='reset-confirm'
+                          type='password'
+                          placeholder='••••••••'
+                          value={resetData.confirmPassword}
+                          onChange={(e) =>
+                            setResetData({
+                              ...resetData,
+                              confirmPassword: e.target.value,
+                            })
+                          }
+                          disabled={isLoading}
+                        />
+                        {errors.confirmPassword && (
+                          <p className='text-sm text-destructive'>
+                            {errors.confirmPassword}
+                          </p>
+                        )}
+                      </div>
+
+                      <Button
+                        type='submit'
+                        className='w-full'
+                        disabled={isLoading}
+                      >
+                        {isLoading ? 'Resetting...' : 'Reset Password'}
+                      </Button>
+
+                      <Button
+                        type='button'
+                        variant='outline'
+                        className='w-full'
+                        onClick={() => {
+                          setActiveTab('login');
+                          setResetData({ password: '', confirmPassword: '' });
+                        }}
+                        disabled={isLoading}
+                      >
+                        Back to Login
+                      </Button>
+                    </form>
+                  </>
+                ) : (
+                  <div className='text-center py-8'>
+                    <p className='text-muted-foreground mb-4'>
+                      Verifying reset link...
+                    </p>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      className='w-full'
+                      onClick={() => setActiveTab('login')}
+                    >
+                      Go to Login
+                    </Button>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>

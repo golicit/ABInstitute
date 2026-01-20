@@ -485,44 +485,63 @@ async function apiRequest<T>(
 export const authAPI = {
   // LOGIN
   async login(credentials: LoginRequest): Promise<ApiResponse<AuthData>> {
-    try {
-      const res = await apiClient.post<ApiResponse<AuthData>>(
-        "/api/auth/login",
-        credentials
-      );
+  try {
+    // Use apiClient instead of apiRequest for better error handling
+    const res = await apiClient.post<ApiResponse<AuthData>>(
+      "/api/auth/login",
+      credentials
+    );
 
-      if (res.data.success && res.data.data) {
-        localStorage.setItem("token", res.data.data.token);
-        localStorage.setItem("user_data", JSON.stringify(res.data.data.user));
+    console.log('API Login Response:', res.data);
+
+    if (res.data.success && res.data.data) {
+      // Store the token and user data
+      const token = res.data.data.token;
+      const user = res.data.data.user;
+      
+      if (token && user) {
+        localStorage.setItem("token", token);
+        localStorage.setItem("user", JSON.stringify(user));
+        
+        // Also set auth header for future requests
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
         toast({
           title: "Success",
           description: "Logged in successfully!",
         });
       } else {
+        console.error('Missing token or user in response:', res.data);
         toast({
           title: "Login Failed",
-          description: res.data.message || "Invalid credentials",
+          description: "Invalid response from server",
           variant: "destructive",
         });
       }
-
-      return res.data;
-    } catch (error: any) {
-      const message = error.response?.data?.message || "Network error occurred";
+    } else {
       toast({
-        title: "Login Error",
-        description: message,
+        title: "Login Failed",
+        description: res.data.message || "Invalid credentials",
         variant: "destructive",
       });
-      return {
-        success: false,
-        message,
-        error: error.message,
-      };
     }
-  },
 
+    return res.data;
+  } catch (error: any) {
+    console.error('API Login Error:', error);
+    const message = error.response?.data?.message || "Network error occurred";
+    toast({
+      title: "Login Error",
+      description: message,
+      variant: "destructive",
+    });
+    return {
+      success: false,
+      message,
+      error: error.message,
+    };
+  }
+},
   // REGISTER
   async register(userData: RegisterRequest): Promise<ApiResponse<AuthData>> {
     try {
