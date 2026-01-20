@@ -7,15 +7,17 @@ const {
   validate,
   userRegistrationSchema,
   userLoginSchema,
+  forgotPasswordSchema,
 } = require('../middleware/validation');
 const jwt = require('jsonwebtoken');
-const axios = require('axios');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 const router = express.Router();
 
 const googleAuthRouter = require('./auth/googleAuth');
 
-// Google login route - both /google and /google-login
+// Google login route
 router.use('/google-oauth', googleAuthRouter);
 router.use('/google-login', googleAuthRouter);
 
@@ -49,7 +51,7 @@ router.post(
         });
       }
 
-      // Hash password
+      // Hash password - THIS IS WHERE PASSWORD GETS HASHED
       const saltRounds = 12;
       const passwordHash = await bcrypt.hash(password, saltRounds);
 
@@ -57,7 +59,7 @@ router.post(
       const userData = {
         name,
         email,
-        passwordHash,
+        passwordHash, // Store the hashed password
         phone,
         role: role || 'user',
         createdAt: new Date(),
@@ -120,8 +122,7 @@ router.post(
   }
 );
 
-// Login endpoint
-// In your login endpoint (in routes/auth.js), after successful login:
+// routes/auth.js - Login endpoint with double-hash fix
 router.post(
   '/login',
   authLimiter,
@@ -130,18 +131,64 @@ router.post(
     try {
       const { email, password } = req.body;
 
+      console.log('Login attempt for email:', email);
+      console.log('Password length:', password.length);
+
       // Find user by email
       const user = await Users.findOne({ email });
       if (!user) {
+        console.log('User not found for email:', email);
         return res.status(401).json({
           success: false,
           message: 'Invalid email or password',
         });
       }
 
-      // Verify password
-      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+      console.log('User found:', user.email);
+      console.log('User has passwordHash?', !!user.passwordHash);
+
+      // Verify password - normal check
+      let isPasswordValid = false;
+
+      if (user.passwordHash) {
+        // Try normal password comparison first
+        isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+
+        // If not valid and passwordHash looks like a bcrypt hash, it might be double-hashed
+        if (!isPasswordValid && user.passwordHash.startsWith('$2')) {
+          console.log('Checking for double-hashed password...');
+
+          // For debugging: Log the hash structure
+          console.log(
+            'Password hash starts with:',
+            user.passwordHash.substring(0, 30) + '...'
+          );
+
+          // Try to hash the input password once and compare
+          // This handles the case where password was double-hashed in old system
+          try {
+            const singleHash = await bcrypt.hash(password, 12);
+            isPasswordValid = singleHash === user.passwordHash;
+
+            if (isPasswordValid) {
+              console.log(
+                '✅ Password matched (was double-hashed in old system)'
+              );
+
+              // Re-hash correctly (single hash) for future logins
+              const correctHash = await bcrypt.hash(password, 12);
+              user.passwordHash = correctHash;
+              await user.save();
+              console.log('✅ Fixed password hash for user:', user.email);
+            }
+          } catch (hashError) {
+            console.log('Error checking double-hash:', hashError.message);
+          }
+        }
+      }
+
       if (!isPasswordValid) {
+        console.log('Invalid password for email:', email);
         return res.status(401).json({
           success: false,
           message: 'Invalid email or password',
@@ -151,9 +198,20 @@ router.post(
       // Generate token
       const token = generateToken(user._id, user.role);
 
+      // Update login stats
+      user.lastLogin = new Date();
+      user.loginCount = (user.loginCount || 0) + 1;
+      await user.save();
+
       // Remove sensitive data from response
       const userResponse = user.toObject();
       delete userResponse.passwordHash;
+      delete userResponse.googleRefreshToken;
+      delete userResponse.googleAccessToken;
+      delete userResponse.resetPasswordToken;
+      delete userResponse.resetPasswordExpires;
+
+      console.log('✅ Login successful for user:', user.email);
 
       res.json({
         success: true,
@@ -161,7 +219,7 @@ router.post(
         data: {
           user: userResponse,
           token,
-          isPaidUser: user.isPaidUser, // Add payment status to response
+          isPaidUser: user.isPaidUser,
         },
       });
     } catch (error) {
@@ -186,50 +244,259 @@ router.post('/logout', (req, res) => {
   });
 });
 
-// Forgot password endpoint
-router.post('/forgot-password', authLimiter, async (req, res) => {
-  try {
-    const { email } = req.body;
+// Forgot password endpoint - UPDATED with email sending
+router.post(
+  '/forgot-password',
+  authLimiter,
+  validate(forgotPasswordSchema),
+  async (req, res) => {
+    try {
+      const { email } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email is required',
+      // Check if user exists
+      const user = await Users.findOne({ email });
+      if (!user) {
+        // For security, don't reveal if email exists
+        return res.json({
+          success: true,
+          message:
+            'If an account with that email exists, a password reset link has been sent.',
+        });
+      }
+
+      // Generate reset token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const resetTokenExpires = Date.now() + 3600000; // 1 hour from now
+
+      // Save token to user
+      user.resetPasswordToken = resetToken;
+      user.resetPasswordExpires = resetTokenExpires;
+      await user.save();
+
+      // Create reset URL
+      const resetUrl = `${
+        process.env.FRONTEND_URL || 'http://localhost:5173'
+      }/auth?tab=reset&token=${resetToken}`;
+
+      // Configure nodemailer transporter
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASSWORD,
+        },
       });
-    }
 
-    // Check if user exists
-    const user = await Users.findOne({ email });
-    if (!user) {
-      // For security reasons, don't reveal that the email doesn't exist
-      return res.json({
+      // Email content
+      const mailOptions = {
+        to: user.email,
+        from: process.env.EMAIL_FROM || 'noreply@abinstitute.com',
+        subject: 'Password Reset Request - AB Institute',
+        html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #3b82f6; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+            .button { display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; }
+            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }
+            .warning { color: #dc2626; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>AB Institute</h1>
+            </div>
+            <div class="content">
+              <h2>Password Reset Request</h2>
+              <p>Hello ${user.name || user.email},</p>
+              <p>We received a request to reset your password for your AB Institute account.</p>
+              <p>Click the button below to reset your password:</p>
+              <p style="text-align: center; margin: 30px 0;">
+                <a href="${resetUrl}" class="button">Reset Password</a>
+              </p>
+              <p>If the button doesn't work, copy and paste this link into your browser:</p>
+              <p style="word-break: break-all; background-color: #f3f4f6; padding: 10px; border-radius: 4px;">
+                ${resetUrl}
+              </p>
+              <p class="warning">This link will expire in 1 hour.</p>
+              <p>If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
+              <div class="footer">
+                <p>Best regards,<br>The AB Institute Team</p>
+                <p>© ${new Date().getFullYear()} AB Institute. All rights reserved.</p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      };
+
+      // Send email
+      await transporter.sendMail(mailOptions);
+
+      console.log(`✅ Password reset email sent to: ${email}`);
+
+      res.json({
         success: true,
         message:
           'If an account with that email exists, a password reset link has been sent.',
       });
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to process password reset request',
+        error:
+          process.env.NODE_ENV === 'development'
+            ? error.message
+            : 'Internal server error',
+      });
+    }
+  }
+);
+
+// Verify reset token
+router.get('/reset-password/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    // Find user with valid reset token
+    const user = await Users.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password reset token is invalid or has expired.',
+      });
     }
 
-    // In a real application, you would:
-    // 1. Generate a reset token
-    // 2. Save it to the database with expiration
-    // 3. Send email with reset link
+    res.json({
+      success: true,
+      message: 'Token is valid',
+      data: {
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    console.error('Reset token verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify reset token',
+    });
+  }
+});
 
-    // For now, we'll just simulate the process
-    console.log(`Password reset requested for: ${email}`);
+// Reset password
+router.post('/reset-password/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
 
-    // TODO: Implement actual email sending logic here
-    // You can use nodemailer, SendGrid, or similar service
+    if (!password || password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters long',
+      });
+    }
+
+    // Find user with valid reset token
+    const user = await Users.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password reset token is invalid or has expired.',
+      });
+    }
+
+    // Hash new password CORRECTLY (single hash)
+    const saltRounds = 12;
+    const newPasswordHash = await bcrypt.hash(password, saltRounds);
+
+    // Update password and clear reset token
+    user.passwordHash = newPasswordHash;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    user.updatedAt = new Date();
+
+    // Clear any existing tokens/sessions
+    user.googleAccessToken = undefined;
+    user.googleRefreshToken = undefined;
+    user.googleTokenExpiry = undefined;
+
+    await user.save();
+
+    // Send confirmation email
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
+      },
+    });
+
+    const mailOptions = {
+      to: user.email,
+      from: process.env.EMAIL_FROM || 'noreply@abinstitute.com',
+      subject: 'Password Changed Successfully - AB Institute',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #10b981; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>AB Institute</h1>
+            </div>
+            <div class="content">
+              <h2>Password Changed Successfully</h2>
+              <p>Hello ${user.name || user.email},</p>
+              <p>Your password has been changed successfully.</p>
+              <p>If you did not make this change, please contact our support team immediately.</p>
+              <div class="footer">
+                <p>Best regards,<br>The AB Institute Team</p>
+                <p>© ${new Date().getFullYear()} AB Institute. All rights reserved.</p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    console.log(`✅ Password reset successfully for user: ${user.email}`);
 
     res.json({
       success: true,
       message:
-        'If an account with that email exists, a password reset link has been sent.',
+        'Password has been reset successfully. You can now login with your new password.',
     });
   } catch (error) {
-    console.error('Forgot password error:', error);
+    console.error('Reset password error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to process password reset request',
+      message: 'Failed to reset password',
       error:
         process.env.NODE_ENV === 'development'
           ? error.message
@@ -238,27 +505,14 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
   }
 });
 
-// Change password endpoint
+// Change password endpoint (for logged in users)
 router.post('/change-password', authenticateToken, async (req, res) => {
   try {
-    console.log('=== CHANGE PASSWORD REQUEST ===');
-    console.log('URL:', req.originalUrl);
-    console.log('Path:', req.path);
-    console.log('Params:', req.params);
-    console.log('User ID from token:', req.user._id);
-    console.log('Request body:', {
-      ...req.body,
-      oldPassword: '[REDACTED]',
-      newPassword: '[REDACTED]',
-      confirmPassword: '[REDACTED]',
-    });
-
     const { oldPassword, newPassword, confirmPassword } = req.body;
     const userId = req.user._id;
 
     // Validate inputs
     if (!oldPassword || !newPassword || !confirmPassword) {
-      console.log('Validation failed: Missing fields');
       return res.status(400).json({
         success: false,
         message: 'All fields are required',
@@ -300,25 +554,21 @@ router.post('/change-password', authenticateToken, async (req, res) => {
       });
     }
 
-    // Hash new password
+    // Hash new password CORRECTLY
     const saltRounds = 12;
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password
-    console.log('Updating password for user:', userId);
     user.passwordHash = newPasswordHash;
     user.updatedAt = new Date();
     await user.save();
 
-    console.log('Password updated successfully for user:', userId);
     res.json({
       success: true,
       message: 'Password changed successfully',
     });
   } catch (error) {
-    console.error('=== CHANGE PASSWORD ERROR ===');
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('Change password error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to change password',

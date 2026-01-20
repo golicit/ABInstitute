@@ -608,16 +608,10 @@ const UserSchema = new mongoose.Schema(
 
 // ========== MIDDLEWARE ==========
 
-// Hash password before saving
+// IMPORTANT: REMOVED password hashing from here
+// Password is already hashed in auth.js routes
 UserSchema.pre('save', async function (next) {
-  if (this.isModified('passwordHash') && this.passwordHash) {
-    try {
-      const salt = await bcrypt.genSalt(10);
-      this.passwordHash = await bcrypt.hash(this.passwordHash, salt);
-    } catch (error) {
-      return next(error);
-    }
-  }
+  // NO password hashing here - it's already done in auth.js
 
   // Ensure batch consistency
   if (this.isModified('batch') && this.batch) {
